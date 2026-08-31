@@ -1,7 +1,9 @@
 const $ = selector => document.querySelector(selector);
 const LOGIN = "https://digitalisierungsplanung.de/login.html";
 const EDITOR = "https://accounts.digitalisierungsplanung.de/state.html";
+const ACCOUNTS = "https://accounts.digitalisierungsplanung.de";
 let me = { authenticated: false, isAdmin: false };
+function loginUrl() { return `${LOGIN}?next=${encodeURIComponent(location.origin + "/admin")}`; }
 
 function escapeHtml(value) {
   const node = document.createElement("div");
@@ -23,13 +25,29 @@ async function json(url, options) {
 
 function applySession() {
   const identity = $("#accountIdentity");
+  const logout = $("#accountLogout");
   if (me.authenticated) {
     identity.textContent = me.email || "Konto";
     identity.href = EDITOR;
+    if (logout) logout.hidden = false;
   } else {
     identity.textContent = "Anmelden";
-    identity.href = LOGIN;
+    identity.href = loginUrl();
+    if (logout) logout.hidden = true;
   }
+}
+
+async function readAccountsSession() {
+  const response = await fetch(`${ACCOUNTS}/api/license/me`, { credentials: "include", headers: { accept: "application/json" } });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok || body.authenticated !== true) return null;
+  return {
+    authenticated: true,
+    isAdmin: body.isAdmin === true,
+    email: body.email || "",
+    package: body.package || null,
+    plan: body.plan || null
+  };
 }
 
 function showGate(html) {
@@ -135,14 +153,19 @@ $("#publishForm").addEventListener("submit", async event => {
   }
 });
 
-try { me = await json("/api/me"); }
-catch { me = { authenticated: false, isAdmin: false }; }
+try { me = await readAccountsSession() || await json("/api/me"); }
+catch { try { me = await json("/api/me"); } catch { me = { authenticated: false, isAdmin: false }; } }
+if (!me || me.authenticated !== true) me = { authenticated: false, isAdmin: false };
 applySession();
+$("#accountLogout")?.addEventListener("click", async () => {
+  try { await fetch(`${ACCOUNTS}/logout`, { method: "POST", credentials: "include" }); } catch {}
+  location.href = loginUrl();
+});
 
 if (!me.authenticated) {
-  showGate(`Bitte zuerst <a href="${LOGIN}">anmelden</a>. Danach öffnet sich dieses Dashboard automatisch.`);
+  showGate(`Bitte zuerst <a href="${loginUrl()}">anmelden</a>. Danach kommst du direkt hierher zurück.`);
 } else if (!me.isAdmin) {
-  showGate(`<strong>${escapeHtml(me.email)}</strong> ist kein Admin.<br>Admins sind die E-Mails in <code>ADMIN_EMAILS</code> auf dem Account-Server. Standard ist chris.hohlfeld@gmail.com — einmal anmelden reicht.`);
+  showGate(`Angemeldet als <strong>${escapeHtml(me.email)}</strong>.<br>Presets anlegen können nur Admin-Konten. Mit <code>chris.hohlfeld@gmail.com</code> anmelden reicht — das Konto ist Admin.`);
 } else {
   $("#gate").hidden = true;
   $("#publishForm").hidden = false;

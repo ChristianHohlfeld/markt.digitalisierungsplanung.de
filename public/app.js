@@ -5,8 +5,11 @@ const count = $("#packageCount");
 const dialog = $("#detailDialog");
 const publishDialog = $("#publishDialog");
 const EDITOR = "https://accounts.digitalisierungsplanung.de/state.html";
+const ACCOUNTS = "https://accounts.digitalisierungsplanung.de";
+const LOGIN = "https://digitalisierungsplanung.de/login.html";
 let packages = [];
 let me = { authenticated: false, isAdmin: false };
+function loginUrl() { return `${LOGIN}?next=${encodeURIComponent(location.origin + "/")}`; }
 
 function escapeHtml(value) { const node = document.createElement("div"); node.textContent = String(value ?? ""); return node.innerHTML; }
 function formatNumber(value) { return new Intl.NumberFormat("de-DE").format(Number(value || 0)); }
@@ -28,20 +31,46 @@ async function json(url, options) {
 
 function applySession() {
   const identity = $("#accountIdentity");
+  const logout = $("#accountLogout");
   const add = $("#addPresetButton");
+  const adminLink = $("#adminNavLink");
   if (me.authenticated) {
     identity.textContent = me.email || "Konto";
     identity.href = EDITOR;
+    if (logout) logout.hidden = false;
   } else {
     identity.textContent = "Anmelden";
-    identity.href = "https://digitalisierungsplanung.de/login.html";
+    identity.href = loginUrl();
+    if (logout) logout.hidden = true;
   }
-  add.hidden = me.isAdmin !== true;
+  if (add) add.hidden = me.isAdmin !== true;
+  if (adminLink) adminLink.hidden = me.isAdmin !== true;
+}
+
+async function readAccountsSession() {
+  const response = await fetch(`${ACCOUNTS}/api/license/me`, { credentials: "include", headers: { accept: "application/json" } });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok || body.authenticated !== true) return null;
+  return {
+    authenticated: true,
+    isAdmin: body.isAdmin === true,
+    email: body.email || "",
+    package: body.package || null,
+    plan: body.plan || null
+  };
 }
 
 async function loadSession() {
-  try { me = await json("/api/me"); }
-  catch { me = { authenticated: false, isAdmin: false }; }
+  try { me = await readAccountsSession() || await json("/api/me"); }
+  catch { try { me = await json("/api/me"); } catch { me = { authenticated: false, isAdmin: false }; } }
+  if (!me || me.authenticated !== true) me = { authenticated: false, isAdmin: false };
+  applySession();
+}
+
+async function logout() {
+  try { await fetch(`${ACCOUNTS}/logout`, { method: "POST", credentials: "include" }); }
+  catch {}
+  me = { authenticated: false, isAdmin: false };
   applySession();
 }
 
@@ -143,4 +172,5 @@ dialog.addEventListener("click", event => { if (event.target === dialog) dialog.
 $("#addPresetButton").addEventListener("click", () => { $("#publishStatus").textContent = ""; publishDialog.showModal(); });
 $("#publishClose").addEventListener("click", () => publishDialog.close());
 publishDialog.addEventListener("click", event => { if (event.target === publishDialog) publishDialog.close(); });
+$("#accountLogout")?.addEventListener("click", logout);
 await Promise.allSettled([loadSession(), loadCategories(), loadPackages()]);

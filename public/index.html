@@ -18,13 +18,14 @@
     </a>
     <nav aria-label="Hauptnavigation">
       <a class="nav-link active" href="/">Markt</a>
-      <a class="nav-link" href="/admin">Admin</a>
+      <a class="nav-link" id="adminNavLink" href="/admin" hidden>Presets anlegen</a>
       <a class="nav-link" href="https://digitalisierungsplanung.de#produkt">Produkt</a>
       <a class="nav-link" href="https://digitalisierungsplanung.de/preise.html">Preise</a>
     </nav>
     <div class="account-nav">
       <button class="btn-primary" id="addPresetButton" type="button" hidden>Preset hinzufügen</button>
-      <a class="nav-link" id="accountIdentity" href="https://digitalisierungsplanung.de/login.html">Anmelden</a>
+      <a class="btn-secondary" id="accountIdentity" href="https://digitalisierungsplanung.de/login.html?next=https%3A%2F%2Fmarkt.digitalisierungsplanung.de%2F">Anmelden</a>
+      <button class="btn-ghost" id="accountLogout" type="button" hidden>Abmelden</button>
       <a class="btn-primary" id="accountPrimary" href="https://accounts.digitalisierungsplanung.de/state.html">Editor öffnen</a>
     </div>
   </div>

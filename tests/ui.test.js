@@ -14,6 +14,9 @@ test("market is a consumer catalog in landing styles, not a developer registry",
   assert.match(html, /Preset hinzufügen/);
   assert.match(html, /Im Editor verwenden/);
   assert.match(html, /href="\/admin"/);
+  assert.match(html, /Presets anlegen/);
+  assert.match(html, /Abmelden/);
+  assert.match(html, /login\.html\?next=/);
   assert.doesNotMatch(html, /Preset Registry/);
   assert.doesNotMatch(html, /ENTWICKLER/);
   assert.doesNotMatch(html, /Manifest abrufen/);
@@ -24,6 +27,8 @@ test("market is a consumer catalog in landing styles, not a developer registry",
   assert.match(app, /\/api\/me/);
   assert.match(app, /addPresetButton/);
   assert.match(app, /isAdmin/);
+  assert.match(app, /accounts\.digitalisierungsplanung\.de/);
+  assert.match(app, /\/api\/license\/me/);
 });
 
 test("admin dashboard is a simple publish form gated by account session", async () => {
@@ -33,4 +38,8 @@ test("admin dashboard is a simple publish form gated by account session", async 
   assert.match(admin, /Sichtbar ab Paket/);
   assert.match(adminJs, /\/api\/admin\/packages/);
   assert.match(adminJs, /isAdmin/);
+  assert.match(adminJs, /login\.html/);
+  assert.match(adminJs, /\?next=/);
+  assert.match(adminJs, /accounts\.digitalisierungsplanung\.de/);
+  assert.match(adminJs, /\/api\/license\/me/);
 });

@@ -18,20 +18,27 @@ const contract = new CanonicalContract(SCHEMA_URL), registry = new Registry(REGI
 await registry.load(); await contract.refresh();
 const requests = new Map();
 
-function headers(extra={}) { return { "content-security-policy":"default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'", "x-content-type-options":"nosniff", "referrer-policy":"no-referrer", "permissions-policy":"camera=(), microphone=(), geolocation=()", "cross-origin-opener-policy":"same-origin", ...extra }; }
+function headers(extra={}) { return { "content-security-policy":"default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://accounts.digitalisierungsplanung.de; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://digitalisierungsplanung.de", "x-content-type-options":"nosniff", "referrer-policy":"no-referrer", "permissions-policy":"camera=(), microphone=(), geolocation=()", "cross-origin-opener-policy":"same-origin", ...extra }; }
 function send(res,status,body,extra={}) { const data=typeof body==="string"?body:JSON.stringify(body); res.writeHead(status,headers({"content-type":typeof body==="string"?"text/plain; charset=utf-8":"application/json; charset=utf-8","content-length":Buffer.byteLength(data),...extra})); res.end(data); }
 function recordView(record){return{id:record.manifest.id,name:record.manifest.name,description:record.manifest.description||"",publisher:record.manifest.publisher,version:record.manifest.version,plan:normalizePlan(record.plan||"trial"),planLabel:planLabel(record.plan||"trial"),status:record.status,categories:record.manifest.contributes.categories,presetCount:record.manifest.contributes.presets.length,presets:record.manifest.contributes.presets.map(p=>({id:p.id,title:p.title,description:p.description||"",categoryId:p.categoryId})),downloads:record.downloads||0,updatedAt:record.updatedAt};}
 function bearer(req){const v=req.headers.authorization||"";return v.startsWith("Bearer ")?v.slice(7):"";} function same(a,b){if(!a||!b||a.length!==b.length)return false;let x=0;for(let i=0;i<a.length;i++)x|=a.charCodeAt(i)^b.charCodeAt(i);return x===0;}
-function sessionCookie(req){const raw=String(req.headers.cookie||"");const match=raw.match(/(?:^|; )dp_session=([^;]+)/);return match?decodeURIComponent(match[1]):"";}
+function sessionCookie(req){const raw=String(req.headers.cookie||"");const match=raw.match(/(?:^|; )dp_session=([^;]+)/);return match?match[1]:"";}
+function forwardedSetCookie(response){
+  if(!response||!response.headers)return [];
+  if(typeof response.headers.getSetCookie==="function")return response.headers.getSetCookie().filter(Boolean);
+  const raw=response.headers.get("set-cookie");
+  return raw?[raw]:[];
+}
 async function accountSession(req, fetcher=globalThis.fetch){
   const cookie=sessionCookie(req);
-  if(!cookie)return {authenticated:false,isAdmin:false};
+  if(!cookie)return {authenticated:false,isAdmin:false,setCookie:[]};
   try{
     const response=await fetcher(`${ACCOUNTS_ORIGIN}/api/license/me`,{headers:{cookie:`dp_session=${cookie}`,accept:"application/json"},signal:AbortSignal.timeout(5000)});
-    if(!response.ok)return {authenticated:false,isAdmin:false};
+    const setCookie=forwardedSetCookie(response);
+    if(!response.ok)return {authenticated:false,isAdmin:false,setCookie};
     const body=await response.json();
-    return {authenticated:body.authenticated===true,isAdmin:body.isAdmin===true,email:body.email||"",package:body.package||null,plan:body.plan||null};
-  }catch{return {authenticated:false,isAdmin:false};}
+    return {authenticated:body.authenticated===true,isAdmin:body.isAdmin===true,email:body.email||"",package:body.package||null,plan:body.plan||null,setCookie};
+  }catch{return {authenticated:false,isAdmin:false,setCookie:[]};}
 }
 async function adminIdentity(req){
   if(ADMIN_TOKEN&&same(bearer(req),ADMIN_TOKEN))return {ok:true,via:"token"};
@@ -63,7 +70,7 @@ async function staticFile(pathname,res){const rel=pathname==="/"?"index.html":pa
 const server=createServer(async(req,res)=>{try{if(!rateOk(req,res))return;const url=new URL(req.url,`http://${req.headers.host||"localhost"}`),path=url.pathname;
 if(req.method==="GET"&&path==="/healthz")return send(res,contract.info().ready?200:503,{ok:contract.info().ready,contract:contract.info(),packages:registry.list().length});
 if(req.method==="GET"&&path==="/api/contract")return send(res,200,contract.info());
-if(req.method==="GET"&&path==="/api/me"){const session=await accountSession(req);return send(res,200,session);}
+if(req.method==="GET"&&path==="/api/me"){const session=await accountSession(req);const extra=session.setCookie?.length?{"set-cookie":session.setCookie}:{};const {setCookie,...body}=session;return send(res,200,body,extra);}
 if(req.method==="POST"&&path==="/api/contract/refresh"){if(!originOk(req,res)||!(await adminGate(req,res)).ok)return;const ok=await contract.refresh();return send(res,ok?200:503,contract.info());}
 if(req.method==="GET"&&path==="/api/categories")return send(res,200,{categories:registry.categories()});
 if(req.method==="GET"&&path==="/api/packages") {const items=registry.list({q:url.searchParams.get("q")||"",category:url.searchParams.get("category")||"",sort:url.searchParams.get("sort")||"newest"});return send(res,200,{packages:items.map(recordView),total:items.length});}
