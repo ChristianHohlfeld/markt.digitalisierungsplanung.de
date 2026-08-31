@@ -1,16 +1,81 @@
-name: CI
+name: Deploy
+
 on:
   push:
     branches: [main]
   pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  test:
+  verify:
+    name: Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 4
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
-      - run: npm ci
+      - run: npm ci --no-audit --no-fund
       - run: npm test
+
+  production:
+    name: Deploy production
+    needs: [verify]
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    env:
+      PRODUCTION_SSH_HOST: realtime.digitalisierungsplanung.de
+      PRODUCTION_SSH_USER: operator
+      PRODUCTION_SSH_KEY: ${{ secrets.PRODUCTION_SSH_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Prepare SSH
+        shell: bash
+        run: |
+          test -n "${PRODUCTION_SSH_KEY:-}" || { echo "::error::PRODUCTION_SSH_KEY is required"; exit 1; }
+          install -d -m 0700 "$HOME/.ssh"
+          printf '%s\n' "$PRODUCTION_SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          chmod 0600 "$HOME/.ssh/id_ed25519"
+          ssh-keyscan -T 8 -H "$PRODUCTION_SSH_HOST" >> "$HOME/.ssh/known_hosts" 2>/dev/null
+          chmod 0600 "$HOME/.ssh/known_hosts"
+
+      - name: Deploy exact main commit
+        shell: bash
+        run: |
+          SSH=(ssh -i "$HOME/.ssh/id_ed25519" -o BatchMode=yes -o ConnectTimeout=8 "${PRODUCTION_SSH_USER}@${PRODUCTION_SSH_HOST}")
+          "${SSH[@]}" "env DEPLOY_COMMIT=${GITHUB_SHA} bash -s" < server/deploy.sh
+
+      - name: Verify live commit and service
+        shell: bash
+        run: |
+          SSH=(ssh -i "$HOME/.ssh/id_ed25519" -o BatchMode=yes -o ConnectTimeout=8 "${PRODUCTION_SSH_USER}@${PRODUCTION_SSH_HOST}")
+          LIVE_SHA="$("${SSH[@]}" "git -C /home/operator/markt.digitalisierungsplanung.de rev-parse HEAD")"
+          echo "expected=${GITHUB_SHA}"
+          echo "live=${LIVE_SHA}"
+          test "$LIVE_SHA" = "$GITHUB_SHA"
+          "${SSH[@]}" "pm2 describe dp-market >/dev/null"
+          curl -fsS --max-time 8 "https://markt.digitalisierungsplanung.de/healthz?deploy=${GITHUB_RUN_ID}" >/tmp/health.json
+          node -e 'const fs=require("fs"); const x=JSON.parse(fs.readFileSync("/tmp/health.json","utf8")); if(!x.ok || x.contract?.ready!==true) process.exit(1); console.log(JSON.stringify(x));'
+
+      - name: Diagnostics on failure
+        if: failure()
+        shell: bash
+        run: |
+          ssh -i "$HOME/.ssh/id_ed25519" -o BatchMode=yes -o ConnectTimeout=8 \
+            "${PRODUCTION_SSH_USER}@${PRODUCTION_SSH_HOST}" \
+            "pm2 describe dp-market; pm2 logs dp-market --lines 80 --nostream" || true
