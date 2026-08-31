@@ -22,7 +22,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: npm test
@@ -32,7 +32,7 @@ jobs:
     needs: [verify]
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 6
     permissions:
       contents: read
     env:
@@ -54,13 +54,19 @@ jobs:
           ssh-keyscan -T 8 -H "$PRODUCTION_SSH_HOST" >> "$HOME/.ssh/known_hosts" 2>/dev/null
           chmod 0600 "$HOME/.ssh/known_hosts"
 
+      - name: Require converged shared host
+        shell: bash
+        run: |
+          SSH=(ssh -i "$HOME/.ssh/id_ed25519" -o BatchMode=yes -o ConnectTimeout=8 "${PRODUCTION_SSH_USER}@${PRODUCTION_SSH_HOST}")
+          "${SSH[@]}" "sudo -n env REQUIRE_MARKET=1 NODE_MAJOR=24 bash /home/operator/digitalisierungsplanung.de/server/verify-host.sh"
+
       - name: Deploy exact main commit
         shell: bash
         run: |
           SSH=(ssh -i "$HOME/.ssh/id_ed25519" -o BatchMode=yes -o ConnectTimeout=8 "${PRODUCTION_SSH_USER}@${PRODUCTION_SSH_HOST}")
-          "${SSH[@]}" "env DEPLOY_COMMIT=${GITHUB_SHA} bash -s" < server/deploy.sh
+          "${SSH[@]}" "env NODE_MAJOR=24 DEPLOY_COMMIT=${GITHUB_SHA} bash -s" < server/deploy.sh
 
-      - name: Verify live commit and service
+      - name: Verify live commit and full host
         shell: bash
         run: |
           SSH=(ssh -i "$HOME/.ssh/id_ed25519" -o BatchMode=yes -o ConnectTimeout=8 "${PRODUCTION_SSH_USER}@${PRODUCTION_SSH_HOST}")
@@ -68,9 +74,9 @@ jobs:
           echo "expected=${GITHUB_SHA}"
           echo "live=${LIVE_SHA}"
           test "$LIVE_SHA" = "$GITHUB_SHA"
-          "${SSH[@]}" "pm2 describe dp-market >/dev/null"
           curl -fsS --max-time 8 "https://markt.digitalisierungsplanung.de/healthz?deploy=${GITHUB_RUN_ID}" >/tmp/health.json
           node -e 'const fs=require("fs"); const x=JSON.parse(fs.readFileSync("/tmp/health.json","utf8")); if(!x.ok || x.contract?.ready!==true) process.exit(1); console.log(JSON.stringify(x));'
+          "${SSH[@]}" "sudo -n env REQUIRE_MARKET=1 NODE_MAJOR=24 bash /home/operator/digitalisierungsplanung.de/server/verify-host.sh"
 
       - name: Diagnostics on failure
         if: failure()
@@ -78,4 +84,4 @@ jobs:
         run: |
           ssh -i "$HOME/.ssh/id_ed25519" -o BatchMode=yes -o ConnectTimeout=8 \
             "${PRODUCTION_SSH_USER}@${PRODUCTION_SSH_HOST}" \
-            "pm2 describe dp-market; pm2 logs dp-market --lines 80 --nostream" || true
+            "node --version; pm2 describe dp-market; pm2 logs dp-market --lines 80 --nostream" || true
