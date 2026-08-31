@@ -8,6 +8,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const html = await readFile(join(root, "public/index.html"), "utf8");
 const css = await readFile(join(root, "public/styles.css"), "utf8");
 const app = await readFile(join(root, "public/app.js"), "utf8");
+const server = await readFile(join(root, "server.js"), "utf8");
 
 test("market is a consumer catalog in landing styles, not a developer registry", () => {
   assert.match(html, /Fertige Bausteine für prüfbare Abläufe/);
@@ -29,6 +30,17 @@ test("market is a consumer catalog in landing styles, not a developer registry",
   assert.match(app, /isAdmin/);
   assert.match(app, /accounts\.digitalisierungsplanung\.de/);
   assert.match(app, /\/api\/license\/me/);
+});
+
+test("preset catalog and package delivery are gated server-side by account entitlement", () => {
+  assert.match(server, /viewerPlan\(session\)/);
+  assert.match(server, /planAllows\(viewer,record\.plan/);
+  assert.match(server, /path==="\/api\/categories"[^\n]*viewerGate/);
+  assert.match(server, /path==="\/api\/packages"[^\n]*viewerGate/);
+  assert.match(server, /manifestMatch[^\n]*viewerGate/);
+  assert.match(server, /downloadMatch[^\n]*viewerGate/);
+  assert.match(server, /detailMatch[^\n]*viewerGate/);
+  assert.match(server, /package_not_entitled/);
 });
 
 test("admin dashboard is a simple publish form gated by account session", async () => {
