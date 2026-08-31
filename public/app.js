@@ -71,14 +71,21 @@ async function logout() {
   catch {}
   me = { authenticated: false, isAdmin: false };
   applySession();
+  packages = [];
+  count.textContent = "0";
+  setState("Bitte anmelden, um die für Ihr Paket verfügbaren Presets zu sehen.");
 }
 
 async function loadCategories() {
-  const { categories } = await json("/api/categories");
-  const select = $("#category");
-  const current = select.value;
-  select.innerHTML = '<option value="">Alle Kategorien</option>' + categories.map(c => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.label)} (${c.count})</option>`).join("");
-  select.value = current;
+  try {
+    const { categories } = await json("/api/categories");
+    const select = $("#category");
+    const current = select.value;
+    select.innerHTML = '<option value="">Alle Kategorien</option>' + categories.map(c => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.label)} (${c.count})</option>`).join("");
+    select.value = current;
+  } catch (error) {
+    if (error.status !== 401) throw error;
+  }
 }
 
 function render() {
@@ -99,7 +106,10 @@ async function loadPackages() {
   const params = new URLSearchParams(new FormData($("#filters")));
   for (const [key,value] of [...params]) if (!value) params.delete(key);
   try { const result = await json(`/api/packages?${params}`); packages = result.packages; render(); }
-  catch { packages = []; count.textContent = "—"; setState("Der Markt ist momentan nicht erreichbar."); }
+  catch (error) {
+    packages = []; count.textContent = "—";
+    setState(error.status === 401 ? "Bitte anmelden, um die für Ihr Paket verfügbaren Presets zu sehen." : "Der Markt ist momentan nicht erreichbar.");
+  }
 }
 
 function openDetail(id) {
@@ -119,11 +129,10 @@ function openDetail(id) {
       await navigator.clipboard.writeText(JSON.stringify(result.manifest, null, 2));
       toast("Paket kopiert. Im Editor einfügen.");
       item.downloads += 1; $("#detailDownloads").textContent = `${formatNumber(item.downloads)} mal übernommen`; render();
-    } catch { toast("Paket konnte nicht geladen werden."); }
+    } catch (error) { toast(error.status === 403 ? "Dieses Preset ist in Ihrem Paket nicht enthalten." : "Paket konnte nicht geladen werden."); }
   };
   dialog.showModal();
 }
-
 
 let timer;
 $("#query").addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(loadPackages, 180); });
@@ -134,4 +143,5 @@ grid.addEventListener("keydown", event => { const card = event.target.closest("[
 $("#dialogClose").addEventListener("click", () => dialog.close());
 dialog.addEventListener("click", event => { if (event.target === dialog) dialog.close(); });
 $("#accountLogout")?.addEventListener("click", logout);
-await Promise.allSettled([loadSession(), loadCategories(), loadPackages()]);
+await loadSession();
+await Promise.allSettled([loadCategories(), loadPackages()]);
