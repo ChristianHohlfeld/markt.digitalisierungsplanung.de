@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Preset- und Plugin-Markt für digitalisierungsplanung.de. Geprüfte Erweiterungen entdecken und in Prozessmodelle übernehmen.">
+  <meta name="theme-color" content="#fcfcfd">
+  <title>Markt · digitalisierungsplanung.de</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<header class="site-header">
+  <div class="container header-row">
+    <a class="brand-link" href="https://digitalisierungsplanung.de" aria-label="digitalisierungsplanung.de">
+      <span class="brand-mark" aria-hidden="true">D</span>
+      <span>digitalisierungsplanung<span>.de</span></span>
+    </a>
+    <nav aria-label="Markt-Navigation">
+      <a class="nav-link active" href="/">Markt</a>
+      <a class="nav-link" href="https://digitalisierungsplanung.de">Produkt</a>
+      <a class="nav-link" href="https://accounts.digitalisierungsplanung.de/state.html">Editor</a>
+    </nav>
+  </div>
+</header>
+<main>
+  <section class="hero-section">
+    <div class="container hero-grid">
+      <div>
+        <div class="eyebrow">Preset Registry</div>
+        <h1>Bausteine für bessere Abläufe.</h1>
+        <p class="hero-subline">Geprüfte Presets und Erweiterungspakete für digitalisierungsplanung.de. Einfügen erzeugt normale Zustände und Übergänge – ohne zweite Runtime und ohne Plugin-State.</p>
+        <div class="contract-line" id="contractLine"><span class="status-dot"></span><span>Zentrale Spezifikation wird geprüft …</span></div>
+      </div>
+      <div class="registry-card" aria-label="Registry-Prinzip">
+        <div class="registry-head"><span>REGISTRY</span><b>eine Spezifikation</b></div>
+        <div class="pipeline"><span>Package</span><i>→</i><span>validieren</span><i>→</i><span>States</span><i>→</i><span>App</span></div>
+        <p>Der Markt verteilt Packages. Die funktionale Wahrheit bleibt das kanonische Projektmodell.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="catalog-section">
+    <div class="container">
+      <div class="catalog-head">
+        <div><div class="section-tag">MARKT</div><h2>Presets & Plugins</h2><p>Nur veröffentlichte und gegen den zentralen Contract validierte Pakete.</p></div>
+        <div class="count" id="packageCount">—</div>
+      </div>
+      <form class="filters" id="filters" role="search">
+        <label class="search-field"><span>Suche</span><input id="query" name="q" autocomplete="off" placeholder="z. B. Freigabe, Onboarding …"></label>
+        <label><span>Kategorie</span><select id="category" name="category"><option value="">Alle Kategorien</option></select></label>
+        <label><span>Sortierung</span><select id="sort" name="sort"><option value="newest">Neueste</option><option value="popular">Beliebt</option><option value="name">Name</option></select></label>
+      </form>
+      <div id="state" class="state-message" hidden></div>
+      <div id="grid" class="package-grid" aria-live="polite"></div>
+    </div>
+  </section>
+
+  <section class="publisher-section">
+    <div class="container publisher-row">
+      <div><div class="section-tag">ENTWICKLER</div><h2>Ein Contract. Jeder Publisher.</h2><p>Packages werden gegen dieselbe zentrale Spezifikation validiert, die auch Editor, Registry und Tests verwenden. Der Markt definiert kein eigenes Format.</p></div>
+      <a class="btn-secondary" href="https://github.com/ChristianHohlfeld/digitalisierungsplanung.de/blob/main/contracts/preset-package.schema.json">Zentrale Spezifikation</a>
+    </div>
+  </section>
+</main>
+<footer><div class="container footer-row"><span>© digitalisierungsplanung.de</span><span>Markt ist Registry, nicht Runtime.</span></div></footer>
+
+<dialog id="detailDialog" class="detail-dialog">
+  <article>
+    <button class="dialog-close" id="dialogClose" aria-label="Schließen">×</button>
+    <div class="section-tag" id="detailPublisher"></div>
+    <h2 id="detailName"></h2>
+    <p id="detailDescription" class="detail-description"></p>
+    <div class="meta-row"><span id="detailVersion"></span><span id="detailDownloads"></span><span id="detailPresetCount"></span></div>
+    <div id="detailCategories" class="chips"></div>
+    <h3>Enthaltene Presets</h3>
+    <div id="detailPresets" class="preset-list"></div>
+    <div class="dialog-actions">
+      <button class="btn-primary" id="installButton">Manifest abrufen</button>
+      <code id="detailId"></code>
+    </div>
+  </article>
+</dialog>
+<script type="module" src="/app.js"></script>
+</body>
+</html>
