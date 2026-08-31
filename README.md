@@ -4,13 +4,15 @@ Store und Registry für Preset-Packages von digitalisierungsplanung.de.
 
 ## Architektur
 
-Der Markt besitzt **keine eigene Preset-Spezifikation**. Die einzige normative Spezifikation liegt im Hauptprojekt:
+Der Markt besitzt **keine eigene Preset-Spezifikation**. Die einzige normative Spezifikation liegt im Hauptprojekt unter `contracts/preset-package.schema.json` und wird ausschließlich über ihre kanonische öffentliche URL konsumiert:
 
-`https://raw.githubusercontent.com/ChristianHohlfeld/digitalisierungsplanung.de/main/contracts/preset-package.schema.json`
+`https://digitalisierungsplanung.de/contracts/preset-package.schema.json`
 
-Der Server lädt und kompiliert genau dieses Schema. Packages werden vor Veröffentlichung und erneut vor Auslieferung dagegen validiert. Ist die zentrale Spezifikation nicht verfügbar, startet die Registry in einem fail-closed Zustand und nimmt keine Veröffentlichungen an.
+Es gibt keinen alternativen Schema-Pfad und keinen konfigurierbaren Contract-Fallback. Packages werden vor Veröffentlichung und erneut vor Auslieferung gegen genau diese Spezifikation validiert. Ist sie nicht verfügbar, bleibt die Registry fail-closed und nimmt keine Veröffentlichungen an.
 
 Der Markt ist nicht Teil der Projekt-Runtime. Bereits in Projekte kompilierte Presets funktionieren unabhängig von diesem Dienst.
+
+Die Registry-Daten sind Laufzeitdaten, keine Spezifikation. Sie liegen persistent außerhalb des Git-Checkouts unter `/home/operator/.local/share/dp-market/registry.json`, damit Deployments oder ein erneutes Checkout keine Marktdaten verändern.
 
 ## Funktionen
 
