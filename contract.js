@@ -1,3 +1,5 @@
+const CANONICAL_VALIDATOR_URL = "https://realtime.digitalisierungsplanung.de/preset-packages/validate";
+
 function resolveRef(root, ref) {
   if (!ref.startsWith("#/")) throw new Error(`unsupported schema ref: ${ref}`);
   return ref.slice(2).split("/").reduce((value, key) => value?.[key.replace(/~1/g, "/").replace(/~0/g, "~")], root);
@@ -42,17 +44,38 @@ export function validateAgainstSchema(schema, value) {
   return { ok: errors.length === 0, errors };
 }
 export class CanonicalContract {
-  constructor(url, { fetchImpl = fetch } = {}) { this.url=url; this.fetchImpl=fetchImpl; this.schema=null; this.loadedAt=null; this.error=null; }
+  constructor(url, { fetchImpl = fetch, validatorUrl = CANONICAL_VALIDATOR_URL } = {}) {
+    this.url=url; this.fetchImpl=fetchImpl; this.validatorUrl=validatorUrl; this.schema=null; this.loadedAt=null; this.error=null;
+  }
   async refresh() {
     try {
       const response = await this.fetchImpl(this.url, { headers: { accept: "application/schema+json, application/json" } });
       if (!response.ok) throw new Error(`canonical contract HTTP ${response.status}`);
       const schema = await response.json();
       if (schema?.properties?.schema?.const !== "preset-package/1") throw new Error("unexpected canonical contract identity");
-      validateAgainstSchema(schema, {});
+      if (schema?.properties?.engine?.properties?.flow?.const !== "1" || schema?.properties?.engine?.properties?.project?.const !== "2") throw new Error("unexpected canonical engine identity");
       this.schema=schema; this.loadedAt=new Date().toISOString(); this.error=null; return true;
     } catch (error) { this.schema=null; this.error=error instanceof Error ? error.message : String(error); return false; }
   }
   validate(value) { return this.schema ? validateAgainstSchema(this.schema, value) : { ok:false, errors:[{message:"canonical contract unavailable"}] }; }
-  info() { return { schema:this.schema?.properties?.schema?.const||null, source:this.url, ready:Boolean(this.schema), loadedAt:this.loadedAt, error:this.error }; }
+  async validateCanonical(value) {
+    if (!this.schema) return { ok:false, errors:[{message:"canonical contract unavailable"}] };
+    try {
+      const response = await this.fetchImpl(this.validatorUrl, {
+        method: "POST",
+        signal: AbortSignal.timeout(8000),
+        headers: { accept: "application/json", "content-type": "application/json" },
+        body: JSON.stringify({ package: value })
+      });
+      const result = await response.json().catch(() => ({ ok:false, errors:[{message:`canonical validator HTTP ${response.status}`}] }));
+      if (response.status === 422) return result;
+      if (!response.ok) return { ok:false, unavailable:true, errors:[{message:`canonical validator HTTP ${response.status}`}] };
+      return result;
+    } catch (error) {
+      return { ok:false, unavailable:true, errors:[{message:error instanceof Error ? error.message : String(error)}] };
+    }
+  }
+  info() { return { schema:this.schema?.properties?.schema?.const||null, source:this.url, validator:this.validatorUrl, ready:Boolean(this.schema), loadedAt:this.loadedAt, error:this.error }; }
 }
+
+export { CANONICAL_VALIDATOR_URL };
