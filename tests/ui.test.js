@@ -36,6 +36,9 @@ test("admin dashboard is a simple publish form gated by account session", async 
   const adminJs = await readFile(join(root, "public/admin.js"), "utf8");
   assert.match(admin, /Presets veröffentlichen/);
   assert.match(admin, /Sichtbar ab Paket/);
+  assert.match(admin, /presetName/);
+  assert.match(admin, /Schritt hinzufügen/);
+  assert.doesNotMatch(admin, /preset-package\/1/);
   assert.match(adminJs, /\/api\/admin\/packages/);
   assert.match(adminJs, /isAdmin/);
   assert.match(adminJs, /login\.html/);

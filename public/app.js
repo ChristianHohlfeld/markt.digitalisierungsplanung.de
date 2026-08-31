@@ -3,7 +3,6 @@ const grid = $("#grid");
 const state = $("#state");
 const count = $("#packageCount");
 const dialog = $("#detailDialog");
-const publishDialog = $("#publishDialog");
 const EDITOR = "https://accounts.digitalisierungsplanung.de/state.html";
 const ACCOUNTS = "https://accounts.digitalisierungsplanung.de";
 const LOGIN = "https://digitalisierungsplanung.de/login.html";
@@ -125,41 +124,6 @@ function openDetail(id) {
   dialog.showModal();
 }
 
-function readPublishJson() {
-  const raw = $("#publishJson").value.trim();
-  if (!raw) throw new Error("JSON fehlt");
-  return JSON.parse(raw);
-}
-
-$("#publishFile").addEventListener("change", async event => {
-  const file = event.target.files?.[0];
-  if (!file) return;
-  $("#publishJson").value = await file.text();
-});
-
-$("#publishForm").addEventListener("submit", async event => {
-  event.preventDefault();
-  const status = $("#publishStatus");
-  const submit = $("#publishSubmit");
-  status.textContent = "";
-  submit.disabled = true;
-  try {
-    const pkg = readPublishJson();
-    await json("/api/packages", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(pkg) });
-    status.textContent = "Veröffentlicht.";
-    toast("Preset ist im Katalog.");
-    publishDialog.close();
-    $("#publishJson").value = "";
-    $("#publishFile").value = "";
-    await Promise.allSettled([loadCategories(), loadPackages()]);
-  } catch (error) {
-    status.textContent = error.body?.error === "invalid_package"
-      ? "Paket entspricht nicht dem Contract."
-      : error.status === 401 ? "Nur Admins können Presets veröffentlichen." : "Veröffentlichen fehlgeschlagen.";
-  } finally {
-    submit.disabled = false;
-  }
-});
 
 let timer;
 $("#query").addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(loadPackages, 180); });
@@ -169,8 +133,5 @@ grid.addEventListener("click", event => { const card = event.target.closest("[da
 grid.addEventListener("keydown", event => { const card = event.target.closest("[data-id]"); if (card && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); openDetail(card.dataset.id); } });
 $("#dialogClose").addEventListener("click", () => dialog.close());
 dialog.addEventListener("click", event => { if (event.target === dialog) dialog.close(); });
-$("#addPresetButton").addEventListener("click", () => { $("#publishStatus").textContent = ""; publishDialog.showModal(); });
-$("#publishClose").addEventListener("click", () => publishDialog.close());
-publishDialog.addEventListener("click", event => { if (event.target === publishDialog) publishDialog.close(); });
 $("#accountLogout")?.addEventListener("click", logout);
 await Promise.allSettled([loadSession(), loadCategories(), loadPackages()]);

@@ -1,3 +1,4 @@
+import { buildPresetPackage, coercePackage, CATEGORIES } from "./preset-form.js";
 const $ = selector => document.querySelector(selector);
 const LOGIN = "https://digitalisierungsplanung.de/login.html";
 const EDITOR = "https://accounts.digitalisierungsplanung.de/state.html";
@@ -63,7 +64,7 @@ async function loadList() {
   $("#packageCount").textContent = String(result.total || 0);
   const list = $("#list");
   if (!result.packages?.length) {
-    list.innerHTML = '<div class="state-message">Noch keine Presets. JSON oben einfügen und veröffentlichen.</div>';
+    list.innerHTML = '<div class="state-message">Noch keine Presets. Oben Name und Schritte eintragen.</div>';
     return;
   }
   list.innerHTML = result.packages.map(item => `<article class="admin-row" data-id="${escapeHtml(item.id)}">
@@ -121,10 +122,119 @@ $("#list").addEventListener("click", async event => {
   }
 });
 
+let importedPackage = null;
+
+function stepRows() {
+  return [...document.querySelectorAll(".step-row")];
+}
+
+function addStepRow(title = "", body = "") {
+  const row = document.createElement("div");
+  row.className = "step-row";
+  row.innerHTML = `<span class="step-index"></span>
+    <input class="step-title" type="text" maxlength="100" placeholder="Schritt, z. B. Antrag stellen">
+    <input class="step-body" type="text" maxlength="500" placeholder="optional kurz erklären">
+    <button class="btn-ghost step-remove" type="button" aria-label="Schritt entfernen">×</button>`;
+  row.querySelector(".step-title").value = title;
+  row.querySelector(".step-body").value = body;
+  $("#stepList").append(row);
+  numberSteps();
+}
+
+function numberSteps() {
+  stepRows().forEach((row, index) => {
+    row.querySelector(".step-index").textContent = String(index + 1);
+  });
+}
+
+function readSteps() {
+  return stepRows().map(row => ({
+    title: row.querySelector(".step-title").value.trim(),
+    body: row.querySelector(".step-body").value.trim()
+  })).filter(step => step.title);
+}
+
+function categoryChoice() {
+  const selected = $("#presetCategory").value;
+  if (selected === "__custom") {
+    const label = $("#customCategory").value.trim() || "Allgemein";
+    return { categoryId: label, categoryLabel: label };
+  }
+  const known = CATEGORIES.find(item => item.id === selected);
+  return { categoryId: selected, categoryLabel: known?.label || selected };
+}
+
+function resetForm() {
+  importedPackage = null;
+  $("#presetName").value = "";
+  $("#presetDescription").value = "";
+  $("#presetCategory").value = "basic";
+  $("#customCategory").value = "";
+  $("#customCategoryWrap").hidden = true;
+  $("#publishPlan").value = "trial";
+  $("#publishFile").value = "";
+  $("#fileHint").textContent = "Optional. Editor-Export oder Paketdatei — fehlende Hülle ergänzen wir.";
+  $("#stepList").innerHTML = "";
+  addStepRow();
+  addStepRow();
+}
+
+function packageFromForm() {
+  if (importedPackage) {
+    const name = $("#presetName").value.trim();
+    return {
+      ...importedPackage,
+      name: name || importedPackage.name,
+      description: $("#presetDescription").value.trim() || importedPackage.description
+    };
+  }
+  const category = categoryChoice();
+  return buildPresetPackage({
+    name: $("#presetName").value,
+    description: $("#presetDescription").value,
+    categoryId: category.categoryId,
+    categoryLabel: category.categoryLabel,
+    publisher: "digitalisierungsplanung.de",
+    steps: readSteps()
+  });
+}
+
+$("#presetCategory").addEventListener("change", () => {
+  $("#customCategoryWrap").hidden = $("#presetCategory").value !== "__custom";
+});
+
+$("#addStep").addEventListener("click", () => addStepRow());
+$("#stepList").addEventListener("click", event => {
+  const remove = event.target.closest(".step-remove");
+  if (!remove) return;
+  remove.closest(".step-row").remove();
+  importedPackage = null;
+  if (!stepRows().length) addStepRow();
+  numberSteps();
+});
+$("#stepList").addEventListener("input", () => { importedPackage = null; });
+
 $("#publishFile").addEventListener("change", async event => {
   const file = event.target.files?.[0];
+  const hint = $("#fileHint");
+  importedPackage = null;
   if (!file) return;
-  $("#publishJson").value = await file.text();
+  try {
+    const pkg = coercePackage(JSON.parse(await file.text()));
+    importedPackage = pkg;
+    $("#presetName").value = pkg.name || "";
+    $("#presetDescription").value = pkg.description || "";
+    const category = pkg.contributes.categories?.[0];
+    if (category && CATEGORIES.some(item => item.id === category.id)) $("#presetCategory").value = category.id;
+    const states = pkg.contributes.presets[0]?.states || [];
+    $("#stepList").innerHTML = "";
+    states.forEach(state => addStepRow(state.title || state.key || "", state.body || ""));
+    if (!states.length) addStepRow();
+    hint.textContent = `Datei erkannt: ${pkg.name} · ${states.length || 1} Schritt${states.length === 1 ? "" : "e"}. Wird so veröffentlicht.`;
+  } catch {
+    hint.textContent = "Diese Datei ist kein Preset. Name und Schritte unten ausfüllen.";
+    event.target.value = "";
+  }
 });
 
 $("#publishForm").addEventListener("submit", async event => {
@@ -134,20 +244,21 @@ $("#publishForm").addEventListener("submit", async event => {
   status.textContent = "";
   submit.disabled = true;
   try {
-    const pkg = JSON.parse($("#publishJson").value.trim());
+    const pkg = packageFromForm();
     await json("/api/packages", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ package: pkg, plan: $("#publishPlan").value })
     });
     status.textContent = "Veröffentlicht.";
-    $("#publishJson").value = "";
-    $("#publishFile").value = "";
+    resetForm();
     await loadList();
   } catch (error) {
-    status.textContent = error.body?.error === "invalid_package"
-      ? "Paket entspricht nicht dem Contract."
-      : error.status === 401 ? "Nur Admins können veröffentlichen." : "Veröffentlichen fehlgeschlagen.";
+    status.textContent = error.code === "name_required"
+      ? "Bitte einen Namen eintragen."
+      : error.body?.error === "invalid_package"
+        ? "Die Angaben ergeben kein gültiges Preset. Name und mindestens einen Schritt prüfen."
+        : error.status === 401 ? "Nur Admins können veröffentlichen." : "Veröffentlichen fehlgeschlagen.";
   } finally {
     submit.disabled = false;
   }
@@ -170,6 +281,7 @@ if (!me.authenticated) {
   $("#gate").hidden = true;
   $("#publishForm").hidden = false;
   $("#listWrap").hidden = false;
+  resetForm();
   try { await loadList(); }
   catch { $("#list").innerHTML = '<div class="state-message">Katalog konnte nicht geladen werden.</div>'; }
 }

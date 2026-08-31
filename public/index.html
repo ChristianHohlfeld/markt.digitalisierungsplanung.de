@@ -23,7 +23,7 @@
       <a class="nav-link" href="https://digitalisierungsplanung.de/preise.html">Preise</a>
     </nav>
     <div class="account-nav">
-      <button class="btn-primary" id="addPresetButton" type="button" hidden>Preset hinzufügen</button>
+      <a class="btn-primary" id="addPresetButton" href="/admin" hidden>Preset hinzufügen</a>
       <a class="btn-secondary" id="accountIdentity" href="https://digitalisierungsplanung.de/login.html?next=https%3A%2F%2Fmarkt.digitalisierungsplanung.de%2F">Anmelden</a>
       <button class="btn-ghost" id="accountLogout" type="button" hidden>Abmelden</button>
       <a class="btn-primary" id="accountPrimary" href="https://accounts.digitalisierungsplanung.de/state.html">Editor öffnen</a>
@@ -85,22 +85,6 @@
   </article>
 </dialog>
 
-<dialog id="publishDialog" class="detail-dialog">
-  <article>
-    <button class="dialog-close" id="publishClose" type="button" aria-label="Schließen">×</button>
-    <div class="section-tag">Admin</div>
-    <h2>Preset hinzufügen</h2>
-    <p class="detail-description">JSON-Paket im zentralen Contract <code>preset-package/1</code> einfügen. Als Admin erscheint es sofort im Katalog.</p>
-    <form id="publishForm" class="publish-form">
-      <label><span>Paketdatei</span><input id="publishFile" type="file" accept="application/json,.json"></label>
-      <label><span>JSON</span><textarea id="publishJson" required rows="14" spellcheck="false" placeholder='{"schema":"preset-package/1", ...}'></textarea></label>
-      <div class="dialog-actions">
-        <button class="btn-primary" id="publishSubmit" type="submit">Veröffentlichen</button>
-        <span class="hint" id="publishStatus"></span>
-      </div>
-    </form>
-  </article>
-</dialog>
 <script type="module" src="/app.js"></script>
 </body>
 </html>

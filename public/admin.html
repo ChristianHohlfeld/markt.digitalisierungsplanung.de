@@ -34,7 +34,7 @@
     <div class="container">
       <div class="eyebrow">Markt-Admin</div>
       <h1>Presets veröffentlichen.</h1>
-      <p class="hero-subline">JSON einfügen, Paket wählen, veröffentlichen. Danach sehen Nutzer nur die Presets ihres gebuchten Pakets.</p>
+      <p class="hero-subline">Name und Schritte eintragen, veröffentlichen. Das Schema füllt das Formular. Nutzer sehen danach nur Presets ihres Pakets.</p>
     </div>
   </section>
 
@@ -45,16 +45,38 @@
       <form id="publishForm" class="admin-card publish-form" hidden>
         <div class="section-tag">Neu</div>
         <h2>Preset hinzufügen</h2>
-        <label><span>Paketdatei</span><input id="publishFile" type="file" accept="application/json,.json"></label>
-        <label><span>JSON</span><textarea id="publishJson" required rows="12" spellcheck="false" placeholder='{"schema":"preset-package/1", ...}'></textarea></label>
-        <label><span>Sichtbar ab Paket</span>
-          <select id="publishPlan">
-            <option value="trial">Test</option>
-            <option value="starter">Starter</option>
-            <option value="expert">Team</option>
-            <option value="enterprise">Unternehmen</option>
-          </select>
-        </label>
+        <p class="hint">Ein Titel, ein paar Schritte, fertig. JSON musst du nicht kennen.</p>
+        <label><span>Name</span><input id="presetName" type="text" required maxlength="100" placeholder="z. B. Urlaubsantrag"></label>
+        <label><span>Kurzbeschreibung</span><input id="presetDescription" type="text" maxlength="500" placeholder="Was dieser Ablauf kann"></label>
+        <div class="form-row">
+          <label><span>Kategorie</span>
+            <select id="presetCategory">
+              <option value="basic">Basics</option>
+              <option value="recording">Browser-Aufnahme</option>
+              <option value="freigabe">Freigabe</option>
+              <option value="antrag">Antrag</option>
+              <option value="crm">CRM & Service</option>
+              <option value="qualitaet">Qualität</option>
+              <option value="__custom">Neue Kategorie…</option>
+            </select>
+          </label>
+          <label id="customCategoryWrap" hidden><span>Kategorie-Name</span><input id="customCategory" type="text" maxlength="80" placeholder="z. B. Onboarding"></label>
+          <label><span>Sichtbar ab Paket</span>
+            <select id="publishPlan">
+              <option value="trial">Test</option>
+              <option value="starter">Starter</option>
+              <option value="expert">Team</option>
+              <option value="enterprise">Unternehmen</option>
+            </select>
+          </label>
+        </div>
+        <div class="steps-block">
+          <span class="steps-label">Schritte</span>
+          <p class="hint">Jeder Schritt wird ein Zustand. Weiter führt zum nächsten.</p>
+          <div id="stepList" class="step-list"></div>
+          <button class="btn-secondary" id="addStep" type="button">Schritt hinzufügen</button>
+        </div>
+        <label class="file-label"><span>Oder fertige Datei</span><input id="publishFile" type="file" accept="application/json,.json"><small class="hint" id="fileHint">Optional. Editor-Export oder Paketdatei — fehlende Hülle ergänzen wir.</small></label>
         <div class="dialog-actions">
           <button class="btn-primary" id="publishSubmit" type="submit">Veröffentlichen</button>
           <span class="hint" id="publishStatus"></span>
