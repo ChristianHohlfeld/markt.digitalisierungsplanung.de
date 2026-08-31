@@ -4,7 +4,7 @@ import { extname, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CanonicalContract } from "./contract.js";
 import { Registry } from "./registry.js";
-import { normalizePlan, planLabel } from "./entitlement.js";
+import { normalizePlan, planAllows, planLabel, viewerPlan } from "./entitlement.js";
 
 const root = fileURLToPath(new URL(".", import.meta.url));
 const publicDir = resolve(root, "public");
@@ -40,6 +40,19 @@ async function accountSession(req, fetcher=globalThis.fetch){
     return {authenticated:body.authenticated===true,isAdmin:body.isAdmin===true,email:body.email||"",package:body.package||null,plan:body.plan||null,setCookie};
   }catch{return {authenticated:false,isAdmin:false,setCookie:[]};}
 }
+async function viewerGate(req,res){
+  const session=await accountSession(req);
+  const viewer=viewerPlan(session);
+  if(!viewer){send(res,401,{error:"authentication_required"});return {ok:false,session,viewer:null};}
+  return {ok:true,session,viewer};
+}
+function entitled(record,viewer){return Boolean(record&&record.status==="published"&&planAllows(viewer,record.plan||"trial"));}
+function visibleRecords(viewer,options={}){return registry.list(options).filter(record=>entitled(record,viewer));}
+function visibleCategories(viewer){
+  const map=new Map();
+  for(const item of visibleRecords(viewer))for(const category of item.manifest.contributes.categories){const current=map.get(category.id)||{...category,count:0};current.count+=1;map.set(category.id,current);}
+  return [...map.values()].sort((a,b)=>a.label.localeCompare(b.label,"de"));
+}
 async function adminIdentity(req){
   if(ADMIN_TOKEN&&same(bearer(req),ADMIN_TOKEN))return {ok:true,via:"token"};
   const session=await accountSession(req);
@@ -72,11 +85,11 @@ if(req.method==="GET"&&path==="/healthz")return send(res,contract.info().ready?2
 if(req.method==="GET"&&path==="/api/contract")return send(res,200,contract.info());
 if(req.method==="GET"&&path==="/api/me"){const session=await accountSession(req);const extra=session.setCookie?.length?{"set-cookie":session.setCookie}:{};const {setCookie,...body}=session;return send(res,200,body,extra);}
 if(req.method==="POST"&&path==="/api/contract/refresh"){if(!originOk(req,res)||!(await adminGate(req,res)).ok)return;const ok=await contract.refresh();return send(res,ok?200:503,contract.info());}
-if(req.method==="GET"&&path==="/api/categories")return send(res,200,{categories:registry.categories()});
-if(req.method==="GET"&&path==="/api/packages") {const items=registry.list({q:url.searchParams.get("q")||"",category:url.searchParams.get("category")||"",sort:url.searchParams.get("sort")||"newest"});return send(res,200,{packages:items.map(recordView),total:items.length});}
-const manifestMatch=path.match(/^\/api\/packages\/([^/]+)\/manifest$/);if(req.method==="GET"&&manifestMatch){if(!contractReady(res))return;const r=registry.get(decodeURIComponent(manifestMatch[1]));if(!r||r.status!=="published")return send(res,404,{error:"not_found"});if(!(await canonicalValid(r.manifest,res,{invalidStatus:503})))return;return send(res,200,r.manifest);}
-const downloadMatch=path.match(/^\/api\/packages\/([^/]+)\/download$/);if(req.method==="POST"&&downloadMatch){if(!contractReady(res))return;const r=registry.get(decodeURIComponent(downloadMatch[1]));if(!r||r.status!=="published")return send(res,404,{error:"not_found"});if(!(await canonicalValid(r.manifest,res,{invalidStatus:503})))return;await registry.countDownload(r.manifest.id);return send(res,200,{manifest:r.manifest});}
-const detailMatch=path.match(/^\/api\/packages\/([^/]+)$/);if(req.method==="GET"&&detailMatch){const r=registry.get(decodeURIComponent(detailMatch[1]));return !r||r.status!=="published"?send(res,404,{error:"not_found"}):send(res,200,recordView(r));}
+if(req.method==="GET"&&path==="/api/categories"){const access=await viewerGate(req,res);if(!access.ok)return;return send(res,200,{categories:visibleCategories(access.viewer)});}
+if(req.method==="GET"&&path==="/api/packages"){const access=await viewerGate(req,res);if(!access.ok)return;const items=visibleRecords(access.viewer,{q:url.searchParams.get("q")||"",category:url.searchParams.get("category")||"",sort:url.searchParams.get("sort")||"newest"});return send(res,200,{packages:items.map(recordView),total:items.length});}
+const manifestMatch=path.match(/^\/api\/packages\/([^/]+)\/manifest$/);if(req.method==="GET"&&manifestMatch){if(!contractReady(res))return;const access=await viewerGate(req,res);if(!access.ok)return;const r=registry.get(decodeURIComponent(manifestMatch[1]));if(!r)return send(res,404,{error:"not_found"});if(!entitled(r,access.viewer))return send(res,403,{error:"package_not_entitled"});if(!(await canonicalValid(r.manifest,res,{invalidStatus:503})))return;return send(res,200,r.manifest);}
+const downloadMatch=path.match(/^\/api\/packages\/([^/]+)\/download$/);if(req.method==="POST"&&downloadMatch){if(!contractReady(res))return;const access=await viewerGate(req,res);if(!access.ok)return;const r=registry.get(decodeURIComponent(downloadMatch[1]));if(!r)return send(res,404,{error:"not_found"});if(!entitled(r,access.viewer))return send(res,403,{error:"package_not_entitled"});if(!(await canonicalValid(r.manifest,res,{invalidStatus:503})))return;await registry.countDownload(r.manifest.id);return send(res,200,{manifest:r.manifest});}
+const detailMatch=path.match(/^\/api\/packages\/([^/]+)$/);if(req.method==="GET"&&detailMatch){const access=await viewerGate(req,res);if(!access.ok)return;const r=registry.get(decodeURIComponent(detailMatch[1]));if(!r)return send(res,404,{error:"not_found"});return !entitled(r,access.viewer)?send(res,403,{error:"package_not_entitled"}):send(res,200,recordView(r));}
 if(req.method==="GET"&&path==="/api/admin/packages"){if(!(await adminGate(req,res)).ok)return;const items=registry.list({q:url.searchParams.get("q")||"",includePending:true,sort:url.searchParams.get("sort")||"newest"});return send(res,200,{packages:items.map(recordView),total:items.length});}
 if(req.method==="POST"&&path==="/api/packages"){if(!originOk(req,res)||!contractReady(res))return;const gate=await publishGate(req,res);if(!gate.ok)return;const body=await bodyJson(req,res);if(body===null)return;const wrapped=body&&typeof body==="object"&&body.package&&body.package.schema==="preset-package/1";const manifest=wrapped?body.package:body;const plan=normalizePlan((wrapped?body.plan:body&&body.plan)||url.searchParams.get("plan"));if(!(await canonicalValid(manifest,res)))return;const previous=registry.get(manifest.id);if(previous&&previous.manifest.publisher!==manifest.publisher)return send(res,409,{error:"publisher_mismatch"});const r=await registry.upsert(manifest,gate.status,plan);return send(res,previous?200:201,{id:r.manifest.id,status:r.status,version:r.manifest.version,plan:r.plan});}
 const adminMatch=path.match(/^\/api\/admin\/packages\/([^/]+)\/status$/);if(req.method==="PATCH"&&adminMatch){if(!originOk(req,res)||!(await adminGate(req,res)).ok||!contractReady(res))return;const body=await bodyJson(req,res);if(body===null)return;const id=decodeURIComponent(adminMatch[1]),r=registry.get(id);if(!r)return send(res,404,{error:"not_found"});if(body.status){const status=String(body.status);if(!["pending","published","rejected"].includes(status))return send(res,422,{error:"invalid_status"});if(!(await canonicalValid(r.manifest,res)))return;await registry.setStatus(id,status);}if(body.plan)await registry.setPlan(id,body.plan);const fresh=registry.get(id);return send(res,200,{id,status:fresh.status,plan:fresh.plan});}

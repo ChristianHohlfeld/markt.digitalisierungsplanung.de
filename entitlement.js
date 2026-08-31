@@ -25,12 +25,14 @@ export function planLabel(value) {
 export function viewerPlan(me) {
   if (!me || me.authenticated !== true) return null;
   if (me.isAdmin) return "enterprise";
-  if (me.package === "trial") return "trial";
+  // A trial must expose the complete product so the full Enterprise scope can be tested.
+  if (me.package === "trial") return "enterprise";
   if (me.package === "licensed") return "enterprise";
   if (me.package === "subscription") return normalizePlan(me.plan || "starter");
   return null;
 }
 
 export function planAllows(viewer, required) {
+  if (!viewer) return false;
   return planRank(viewer) >= planRank(required);
 }
