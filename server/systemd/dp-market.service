@@ -1,0 +1,21 @@
+[Unit]
+Description=digitalisierungsplanung.de marketplace
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=operator
+WorkingDirectory=/home/operator/markt.digitalisierungsplanung.de
+EnvironmentFile=/home/operator/markt.digitalisierungsplanung.de/.env
+ExecStart=/usr/bin/node server.js
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/home/operator/markt.digitalisierungsplanung.de/data
+
+[Install]
+WantedBy=multi-user.target
