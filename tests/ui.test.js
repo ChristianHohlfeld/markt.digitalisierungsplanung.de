@@ -13,6 +13,7 @@ test("market is a consumer catalog in landing styles, not a developer registry",
   assert.match(html, /Fertige Bausteine für prüfbare Abläufe/);
   assert.match(html, /Preset hinzufügen/);
   assert.match(html, /Im Editor verwenden/);
+  assert.match(html, /href="\/admin"/);
   assert.doesNotMatch(html, /Preset Registry/);
   assert.doesNotMatch(html, /ENTWICKLER/);
   assert.doesNotMatch(html, /Manifest abrufen/);
@@ -23,4 +24,13 @@ test("market is a consumer catalog in landing styles, not a developer registry",
   assert.match(app, /\/api\/me/);
   assert.match(app, /addPresetButton/);
   assert.match(app, /isAdmin/);
+});
+
+test("admin dashboard is a simple publish form gated by account session", async () => {
+  const admin = await readFile(join(root, "public/admin.html"), "utf8");
+  const adminJs = await readFile(join(root, "public/admin.js"), "utf8");
+  assert.match(admin, /Presets veröffentlichen/);
+  assert.match(admin, /Sichtbar ab Paket/);
+  assert.match(adminJs, /\/api\/admin\/packages/);
+  assert.match(adminJs, /isAdmin/);
 });

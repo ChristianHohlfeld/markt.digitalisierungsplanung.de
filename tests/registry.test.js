@@ -14,5 +14,11 @@ test("registry exposes published packages only and writes atomically", async () 
     await registry.upsert(manifest("official.one"), "pending"); assert.equal(registry.list().length, 0);
     await registry.setStatus("official.one", "published"); assert.equal(registry.list().length, 1);
     const parsed = JSON.parse(await readFile(path,"utf8")); assert.equal(parsed.packages[0].manifest.id, "official.one");
+    await registry.upsert(manifest("official.two"), "published", "starter");
+    assert.equal(registry.get("official.two").plan, "starter");
+    await registry.setPlan("official.two", "enterprise");
+    assert.equal(registry.get("official.two").plan, "enterprise");
+    await registry.remove("official.two");
+    assert.equal(registry.get("official.two"), null);
   } finally { await rm(dir,{recursive:true,force:true}); }
 });

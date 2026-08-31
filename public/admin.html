@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Presets für den Marktplatz veröffentlichen.">
+  <meta name="theme-color" content="#fcfcfd">
+  <meta name="robots" content="noindex">
+  <title>Presets verwalten · Markt</title>
+  <link rel="icon" href="https://digitalisierungsplanung.de/favicon.ico" sizes="any">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<header class="site-header">
+  <div class="container header-row">
+    <a class="brand-link" href="https://digitalisierungsplanung.de" aria-label="digitalisierungsplanung.de">
+      <svg class="brand-mark" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect x="2" y="2" width="28" height="28" rx="4" fill="#1e3a8a" stroke="#0f172a" stroke-width="2"/><path d="M8 11H24M8 16H20M8 21H16" stroke="#fff" stroke-width="2" stroke-linecap="round"/><circle cx="22" cy="21" r="2.5" fill="#047857"/></svg>
+      <span>digitalisierungsplanung<span>.de</span></span>
+    </a>
+    <nav aria-label="Hauptnavigation">
+      <a class="nav-link" href="/">Markt</a>
+      <a class="nav-link active" href="/admin">Admin</a>
+      <a class="nav-link" href="https://digitalisierungsplanung.de/preise.html">Preise</a>
+    </nav>
+    <div class="account-nav">
+      <a class="nav-link" id="accountIdentity" href="https://digitalisierungsplanung.de/login.html">Anmelden</a>
+      <a class="btn-primary" id="accountPrimary" href="https://accounts.digitalisierungsplanung.de/state.html">Editor öffnen</a>
+    </div>
+  </div>
+</header>
+<main>
+  <section class="hero-section admin-hero">
+    <div class="container">
+      <div class="eyebrow">Markt-Admin</div>
+      <h1>Presets veröffentlichen.</h1>
+      <p class="hero-subline">JSON einfügen, Paket wählen, veröffentlichen. Danach sehen Nutzer nur die Presets ihres gebuchten Pakets.</p>
+    </div>
+  </section>
+
+  <section class="catalog-section" id="admin">
+    <div class="container admin-layout">
+      <div id="gate" class="state-message" hidden></div>
+
+      <form id="publishForm" class="admin-card publish-form" hidden>
+        <div class="section-tag">Neu</div>
+        <h2>Preset hinzufügen</h2>
+        <label><span>Paketdatei</span><input id="publishFile" type="file" accept="application/json,.json"></label>
+        <label><span>JSON</span><textarea id="publishJson" required rows="12" spellcheck="false" placeholder='{"schema":"preset-package/1", ...}'></textarea></label>
+        <label><span>Sichtbar ab Paket</span>
+          <select id="publishPlan">
+            <option value="trial">Test</option>
+            <option value="starter">Starter</option>
+            <option value="expert">Team</option>
+            <option value="enterprise">Unternehmen</option>
+          </select>
+        </label>
+        <div class="dialog-actions">
+          <button class="btn-primary" id="publishSubmit" type="submit">Veröffentlichen</button>
+          <span class="hint" id="publishStatus"></span>
+        </div>
+      </form>
+
+      <div id="listWrap" hidden>
+        <div class="catalog-head">
+          <div><div class="section-tag">Katalog</div><h2>Veröffentlichte und wartende Presets</h2></div>
+          <div class="count" id="packageCount">—</div>
+        </div>
+        <div id="list" class="admin-list"></div>
+      </div>
+    </div>
+  </section>
+</main>
+<footer class="site-footer"><div class="container footer-row"><span>© 2026 digitalisierungsplanung.de</span><div class="footer-links"><a href="/">Markt</a><a href="https://digitalisierungsplanung.de/impressum.html">Impressum</a></div></div></footer>
+<script type="module" src="/admin.js"></script>
+</body>
+</html>

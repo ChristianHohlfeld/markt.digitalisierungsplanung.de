@@ -1,5 +1,6 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
+import { normalizePlan } from "./entitlement.js";
 
 const EMPTY = Object.freeze({ version: 1, packages: [] });
 
@@ -46,12 +47,13 @@ export class Registry {
     return [...map.values()].sort((a, b) => a.label.localeCompare(b.label, "de"));
   }
 
-  async upsert(manifest, status = "pending") {
+  async upsert(manifest, status = "pending", plan = "trial") {
     const now = new Date().toISOString();
     const previous = this.get(manifest.id);
     const record = {
       manifest,
       status,
+      plan: normalizePlan(plan || previous?.plan || "trial"),
       downloads: previous?.downloads || 0,
       createdAt: previous?.createdAt || now,
       updatedAt: now
@@ -67,6 +69,23 @@ export class Registry {
     if (!record) return null;
     record.status = status;
     record.updatedAt = new Date().toISOString();
+    await this.persist();
+    return record;
+  }
+
+  async setPlan(id, plan) {
+    const record = this.get(id);
+    if (!record) return null;
+    record.plan = normalizePlan(plan);
+    record.updatedAt = new Date().toISOString();
+    await this.persist();
+    return record;
+  }
+
+  async remove(id) {
+    const record = this.get(id);
+    if (!record) return null;
+    this.state.packages = this.state.packages.filter(item => item.manifest.id !== id);
     await this.persist();
     return record;
   }

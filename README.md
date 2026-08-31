@@ -2,17 +2,28 @@
 
 Store für Preset-Packages von digitalisierungsplanung.de.
 
-Der Markt besitzt **keine eigene Preset-Spezifikation**. Packages werden gegen `https://digitalisierungsplanung.de/contracts/preset-package.schema.json` validiert.
-
-Die öffentliche Seite ist ein Katalog in der Landing-Sprache: suchen, öffnen, im Editor übernehmen. Admin-Konten mit `is_admin` in der Account-Datenbank sehen **Preset hinzufügen** und veröffentlichen direkt.
+Packages werden gegen `https://digitalisierungsplanung.de/contracts/preset-package.schema.json` validiert. Kein eigenes Schema.
 
 ## Admin
 
+Dashboard: [https://markt.digitalisierungsplanung.de/admin](https://markt.digitalisierungsplanung.de/admin)
+
+1. Mit `chris.hohlfeld@gmail.com` anmelden (steht in `ADMIN_EMAILS` auf dem Account-Server).
+2. JSON-Paket einfügen, sichtbares Paket wählen (Test / Starter / Team / Unternehmen), veröffentlichen.
+3. Im Editor erscheinen nur Presets, die zum gebuchten Paket passen.
+
+CLI, falls nötig, im Hauptprojekt:
+
 ```bash
-node server/license-admin.js admin chris.hohlfeld@gmail.com on
+cd ~/digitalisierungsplanung.de
+node server/license-admin.js admin EMAIL on
 ```
 
-läuft im Hauptprojekt `digitalisierungsplanung.de`. Danach reicht die normale Account-Session auf `*.digitalisierungsplanung.de` für Publish.
+Im Markt-Repo leitet derselbe Befehl dorthin weiter:
+
+```bash
+node server/license-admin.js admin EMAIL on
+```
 
 Token bleiben als Fallback:
 

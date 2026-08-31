@@ -61,7 +61,7 @@ function render() {
     <div class="package-top"><div class="package-icon">${escapeHtml(initials(item.name))}</div><span class="package-version">v${escapeHtml(item.version)}</span></div>
     <h3>${escapeHtml(item.name)}</h3><div class="package-publisher">${escapeHtml(item.publisher)}</div>
     <p>${escapeHtml(item.description || `${item.presetCount} Schritt${item.presetCount === 1 ? "" : "e"}`)}</p>
-    <div class="chips">${item.categories.slice(0,3).map(c => `<span class="chip">${escapeHtml(c.label)}</span>`).join("")}</div>
+    <div class="chips"><span class="chip">${escapeHtml(item.planLabel || "Test")}</span>${item.categories.slice(0,3).map(c => `<span class="chip">${escapeHtml(c.label)}</span>`).join("")}</div>
     <div class="card-footer"><span>${item.presetCount} Schritt${item.presetCount === 1 ? "" : "e"}</span><span>Übernehmen</span></div>
   </article>`).join("");
 }
