@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 APP_DIR="${APP_DIR:-/home/operator/markt.digitalisierungsplanung.de}"
-SERVICE="${SERVICE:-dp-market.service}"
+APP_NAME="${APP_NAME:-dp-market}"
 cd "$APP_DIR"
 npm ci --omit=dev
 npm test
-sudo systemctl daemon-reload
-sudo systemctl enable "$SERVICE"
-sudo systemctl restart "$SERVICE"
+if pm2 describe "$APP_NAME" >/dev/null 2>&1; then
+  pm2 restart "$APP_NAME" --update-env
+else
+  pm2 start server.js --name "$APP_NAME" --cwd "$APP_DIR" --time
+fi
+pm2 save
 curl -fsS http://127.0.0.1:3010/healthz >/dev/null
