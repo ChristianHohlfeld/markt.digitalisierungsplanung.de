@@ -59,3 +59,4 @@ jobs:
           git add -A
           git commit -m "Canonicalize market account session"
           git push origin HEAD:main
+# trigger
