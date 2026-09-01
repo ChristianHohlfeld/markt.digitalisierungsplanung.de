@@ -4,11 +4,11 @@ const state = $("#state");
 const count = $("#packageCount");
 const dialog = $("#detailDialog");
 const EDITOR = "https://accounts.digitalisierungsplanung.de/state.html";
-const ACCOUNTS = "https://accounts.digitalisierungsplanung.de";
 const LOGIN = "https://digitalisierungsplanung.de/login.html";
 let packages = [];
 let me = { authenticated: false, isAdmin: false };
-function loginUrl() { return `${LOGIN}?next=${encodeURIComponent(location.origin + "/")}`; }
+let sessionRequest = null;
+function loginUrl() { return `${LOGIN}?mode=login&next=${encodeURIComponent(location.origin + "/")}`; }
 
 function escapeHtml(value) { const node = document.createElement("div"); node.textContent = String(value ?? ""); return node.innerHTML; }
 function formatNumber(value) { return new Intl.NumberFormat("de-DE").format(Number(value || 0)); }
@@ -17,7 +17,7 @@ function setState(message = "") { state.hidden = !message; state.textContent = m
 function toast(message) { const el = document.createElement("div"); el.className = "toast"; el.textContent = message; document.body.append(el); setTimeout(() => el.remove(), 2400); }
 
 async function json(url, options) {
-  const response = await fetch(url, { credentials: "same-origin", ...options, headers: { accept: "application/json", ...(options?.headers || {}) } });
+  const response = await fetch(url, { credentials: "same-origin", cache: "no-store", ...options, headers: { accept: "application/json", ...(options?.headers || {}) } });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
     const error = new Error(body.error || `${response.status}`);
@@ -38,7 +38,7 @@ function applySession() {
     identity.href = EDITOR;
     if (logout) logout.hidden = false;
   } else {
-    identity.textContent = "Zugang";
+    identity.textContent = "Anmelden";
     identity.href = loginUrl();
     if (logout) logout.hidden = true;
   }
@@ -46,34 +46,26 @@ function applySession() {
   if (adminLink) adminLink.hidden = me.isAdmin !== true;
 }
 
-async function readAccountsSession() {
-  const response = await fetch(`${ACCOUNTS}/api/license/me`, { credentials: "include", headers: { accept: "application/json" } });
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok || body.authenticated !== true) return null;
-  return {
-    authenticated: true,
-    isAdmin: body.isAdmin === true,
-    email: body.email || "",
-    package: body.package || null,
-    plan: body.plan || null
-  };
-}
-
 async function loadSession() {
-  try { me = await readAccountsSession() || await json("/api/me"); }
-  catch { try { me = await json("/api/me"); } catch { me = { authenticated: false, isAdmin: false }; } }
-  if (!me || me.authenticated !== true) me = { authenticated: false, isAdmin: false };
-  applySession();
+  if (sessionRequest) return sessionRequest;
+  sessionRequest = (async () => {
+    try { me = await json("/api/me"); }
+    catch { me = { authenticated: false, isAdmin: false }; }
+    if (!me || me.authenticated !== true) me = { authenticated: false, isAdmin: false };
+    applySession();
+    return me;
+  })().finally(() => { sessionRequest = null; });
+  return sessionRequest;
 }
 
 async function logout() {
-  try { await fetch(`${ACCOUNTS}/logout`, { method: "POST", credentials: "include" }); }
+  try { await json("/api/logout", { method: "POST" }); }
   catch {}
   me = { authenticated: false, isAdmin: false };
   applySession();
   packages = [];
   count.textContent = "0";
-  setState("Bitte öffnen Sie Ihren Zugang, um die verfügbaren Presets zu sehen.");
+  setState("Bitte anmelden, um die verfügbaren Presets zu sehen.");
 }
 
 async function loadCategories() {
@@ -108,7 +100,7 @@ async function loadPackages() {
   try { const result = await json(`/api/packages?${params}`); packages = result.packages; render(); }
   catch (error) {
     packages = []; count.textContent = "—";
-    setState(error.status === 401 ? "Bitte öffnen Sie Ihren Zugang, um die verfügbaren Presets zu sehen." : "Der Markt ist momentan nicht erreichbar.");
+    setState(error.status === 401 ? "Bitte anmelden, um die verfügbaren Presets zu sehen." : "Der Markt ist momentan nicht erreichbar.");
   }
 }
 
@@ -143,5 +135,7 @@ grid.addEventListener("keydown", event => { const card = event.target.closest("[
 $("#dialogClose").addEventListener("click", () => dialog.close());
 dialog.addEventListener("click", event => { if (event.target === dialog) dialog.close(); });
 $("#accountLogout")?.addEventListener("click", logout);
+window.addEventListener("focus", async () => { const before = me.authenticated; await loadSession(); if (before !== me.authenticated) await Promise.allSettled([loadCategories(), loadPackages()]); });
+document.addEventListener("visibilitychange", () => { if (!document.hidden) void loadSession(); });
 await loadSession();
 await Promise.allSettled([loadCategories(), loadPackages()]);
