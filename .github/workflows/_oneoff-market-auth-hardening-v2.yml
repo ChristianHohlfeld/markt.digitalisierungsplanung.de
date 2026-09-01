@@ -1,0 +1,54 @@
+name: One-off market auth hardening v2
+on:
+  push:
+    paths:
+      - .github/workflows/_oneoff-market-auth-hardening-v2.yml
+permissions:
+  contents: write
+jobs:
+  harden:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Apply reviewed hardening and precise regression
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          source_path=Path('.github/workflows/_oneoff-market-auth-hardening.yml')
+          lines=source_path.read_text().splitlines()
+          start=next(i for i,line in enumerate(lines) if line.strip()=="python - <<'PY'")+1
+          end=next(i for i in range(start,len(lines)) if lines[i].strip()=='PY')
+          script='\n'.join(line[10:] if line.startswith('          ') else line for line in lines[start:end])
+          exec(compile(script,str(source_path),'exec'),{})
+
+          p=Path('tests/ui.test.js'); t=p.read_text()
+          old='  assert.doesNotMatch(app, /accounts\\.digitalisierungsplanung\\.de/);'
+          new='  assert.doesNotMatch(app, /const ACCOUNTS|fetch\\(`\\$\\{ACCOUNTS\\}/);'
+          if t.count(old)!=1: raise SystemExit('overbroad app assertion not found')
+          t=t.replace(old,new,1)
+          old='  assert.doesNotMatch(adminJs, /accounts\\.digitalisierungsplanung\\.de/);'
+          new='  assert.doesNotMatch(adminJs, /const ACCOUNTS|fetch\\(`\\$\\{ACCOUNTS\\}/);'
+          if t.count(old)!=1: raise SystemExit('overbroad admin assertion not found')
+          t=t.replace(old,new,1)
+          p.write_text(t)
+          Path('.github/workflows/_oneoff-market-auth-hardening-v2.yml').unlink()
+          PY
+          npm test
+          git diff --check
+      - name: Commit hardened market
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Harden market account boundary"
+          git push origin HEAD:main
