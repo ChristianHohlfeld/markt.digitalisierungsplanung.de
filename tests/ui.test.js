@@ -17,8 +17,8 @@ test("market is a consumer catalog in landing styles, not a developer registry",
   assert.match(html, /href="\/admin"/);
   assert.match(html, /Presets anlegen/);
   assert.match(html, /Abmelden/);
-  assert.match(html, /login\.html\?next=/);
-  assert.match(html, /id="accountIdentity"/);
+  assert.match(html, /login\.html\?mode=login&amp;next=/);
+  assert.match(html, /id="accountIdentity"[^>]*>Anmelden<\/a>/);
   assert.doesNotMatch(html, /Preset Registry/);
   assert.doesNotMatch(html, /ENTWICKLER/);
   assert.doesNotMatch(html, /Manifest abrufen/);
@@ -57,5 +57,7 @@ test("admin dashboard is a simple publish form gated by account session", async 
   assert.match(adminJs, /\/api\/admin\/packages/);
   assert.match(adminJs, /isAdmin/);
   assert.match(adminJs, /login\.html/);
-  assert.match(adminJs, /\?next=/);
+  assert.match(adminJs, /\?mode=login&next=/);
+  assert.match(adminJs, /\/api\/me/);
+  assert.doesNotMatch(adminJs, /\/api\/license\/me/);
 });
