@@ -1,0 +1,106 @@
+name: One-off market auth hardening
+on:
+  push:
+    paths:
+      - .github/workflows/_oneoff-market-auth-hardening.yml
+permissions:
+  contents: write
+jobs:
+  harden:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Harden market auth boundary
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p=Path(path); t=p.read_text(); n=t.count(old)
+              if n!=1: raise SystemExit(f'{path}: expected one match, got {n}: {old[:120]!r}')
+              p.write_text(t.replace(old,new,1))
+
+          p=Path('server.js'); t=p.read_text()
+          t=t.replace('import { createServer } from "node:http";\n', 'import { createServer } from "node:http";\nimport { timingSafeEqual } from "node:crypto";\nimport { isIP } from "node:net";\n', 1)
+          old='''function headers(extra={}) { return { "content-security-policy":"default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://accounts.digitalisierungsplanung.de; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://digitalisierungsplanung.de", "x-content-type-options":"nosniff", "referrer-policy":"no-referrer", "permissions-policy":"camera=(), microphone=(), geolocation=()", "cross-origin-opener-policy":"same-origin", ...extra }; }'''
+          new='''function headers(extra={}) { return { "content-security-policy":"default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'", "x-content-type-options":"nosniff", "referrer-policy":"no-referrer", "permissions-policy":"camera=(), microphone=(), geolocation=()", "cross-origin-opener-policy":"same-origin", "cross-origin-resource-policy":"same-origin", "cache-control":"no-store", ...extra }; }'''
+          if old not in t: raise SystemExit('headers block not found')
+          t=t.replace(old,new,1)
+          old='''function bearer(req){const v=req.headers.authorization||"";return v.startsWith("Bearer ")?v.slice(7):"";} function same(a,b){if(!a||!b||a.length!==b.length)return false;let x=0;for(let i=0;i<a.length;i++)x|=a.charCodeAt(i)^b.charCodeAt(i);return x===0;}\nfunction sessionCookie(req){const raw=String(req.headers.cookie||"");const match=raw.match(/(?:^|; )dp_session=([^;]+)/);return match?match[1]:"";}'''
+          new='''function bearer(req){const v=req.headers.authorization||"";return v.startsWith("Bearer ")?v.slice(7):"";}\nfunction same(a,b){const left=Buffer.from(String(a||""),"utf8"),right=Buffer.from(String(b||""),"utf8");return left.length>0&&left.length===right.length&&timingSafeEqual(left,right);}\nfunction sessionCookie(req){for(const part of String(req.headers.cookie||"").split(";")){const [name,...rest]=part.trim().split("=");if(name==="dp_session"&&rest.length)return rest.join("=");}return "";}'''
+          if old not in t: raise SystemExit('bearer/cookie block not found')
+          t=t.replace(old,new,1)
+          anchor='''async function accountSession(req, fetcher=globalThis.fetch){\n  const cookie=sessionCookie(req);'''
+          if anchor not in t: raise SystemExit('accountSession anchor not found')
+          # Insert helpers immediately before accountSession.
+          helper='''function sessionResponseHeaders(session){return session?.setCookie?.length?{"set-cookie":session.setCookie}:{};}\nfunction forwardSessionCookie(res,session){if(session?.setCookie?.length)res.setHeader("set-cookie",session.setCookie);}\nfunction clientIp(req){\n  const normalize=value=>String(value||"").replace(/^::ffff:/,"").trim();\n  const remote=normalize(req.socket?.remoteAddress),loopback=remote==="127.0.0.1"||remote==="::1";\n  if(loopback){const forwarded=normalize(String(req.headers["x-real-ip"]||"").split(",")[0]);if(isIP(forwarded))return forwarded;}\n  return isIP(remote)?remote:"unknown";\n}\nasync function accountLogout(req,fetcher=globalThis.fetch){\n  const fallback=['dp_session=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0; Secure; Domain=.digitalisierungsplanung.de'];\n  const cookie=sessionCookie(req);if(!cookie)return fallback;\n  try{const response=await fetcher(`${ACCOUNTS_ORIGIN}/logout`,{method:"POST",headers:{cookie:`dp_session=${cookie}`,accept:"application/json"},signal:AbortSignal.timeout(5000)});const setCookie=forwardedSetCookie(response);return setCookie.length?setCookie:fallback;}catch{return fallback;}\n}\n'''
+          t=t.replace(anchor,helper+anchor,1)
+          old='''async function viewerGate(req,res){\n  const session=await accountSession(req);\n  const viewer=viewerPlan(session);\n  if(!viewer){send(res,401,{error:"authentication_required"});return {ok:false,session,viewer:null};}\n  return {ok:true,session,viewer};\n}'''
+          new='''async function viewerGate(req,res){\n  const session=await accountSession(req);\n  forwardSessionCookie(res,session);\n  const viewer=viewerPlan(session);\n  if(!viewer){send(res,401,{error:"authentication_required"});return {ok:false,session,viewer:null};}\n  return {ok:true,session,viewer};\n}'''
+          if old not in t: raise SystemExit('viewerGate not found')
+          t=t.replace(old,new,1)
+          old='''async function adminIdentity(req){\n  if(ADMIN_TOKEN&&same(bearer(req),ADMIN_TOKEN))return {ok:true,via:"token"};\n  const session=await accountSession(req);\n  if(session.isAdmin)return {ok:true,via:"session",email:session.email};\n  return {ok:false};\n}\nasync function adminGate(req,res){\n  const identity=await adminIdentity(req);\n  if(identity.ok)return identity;\n  send(res,401,{error:"unauthorized"});\n  return {ok:false};\n}\nasync function publishGate(req,res){\n  const admin=await adminIdentity(req);\n  if(admin.ok)return {...admin,status:"published"};'''
+          new='''async function adminIdentity(req){\n  if(ADMIN_TOKEN&&same(bearer(req),ADMIN_TOKEN))return {ok:true,via:"token",setCookie:[]};\n  const session=await accountSession(req);\n  if(session.isAdmin)return {ok:true,via:"session",email:session.email,setCookie:session.setCookie||[]};\n  return {ok:false,setCookie:session.setCookie||[]};\n}\nasync function adminGate(req,res){\n  const identity=await adminIdentity(req);\n  forwardSessionCookie(res,identity);\n  if(identity.ok)return identity;\n  send(res,401,{error:"unauthorized"});\n  return {ok:false};\n}\nasync function publishGate(req,res){\n  const admin=await adminIdentity(req);\n  forwardSessionCookie(res,admin);\n  if(admin.ok)return {...admin,status:"published"};'''
+          if old not in t: raise SystemExit('admin gates not found')
+          t=t.replace(old,new,1)
+          old='''function rateOk(req,res){const ip=req.socket.remoteAddress||"unknown",now=Date.now(),slot=requests.get(ip)||{start:now,count:0};if(now-slot.start>60000){slot.start=now;slot.count=0;}slot.count++;requests.set(ip,slot);if(slot.count>300){send(res,429,{error:"rate_limited"},{"retry-after":"60"});return false;}return true;}'''
+          new='''function rateOk(req,res){const ip=clientIp(req),now=Date.now();if(requests.size>4096)for(const [key,value]of requests)if(now-value.start>120000)requests.delete(key);const slot=requests.get(ip)||{start:now,count:0};if(now-slot.start>60000){slot.start=now;slot.count=0;}slot.count++;requests.set(ip,slot);if(slot.count>300){send(res,429,{error:"rate_limited"},{"retry-after":"60"});return false;}return true;}'''
+          if old not in t: raise SystemExit('rateOk not found')
+          t=t.replace(old,new,1)
+          old='''async function staticFile(pathname,res){const rel=pathname==="/"?"index.html":pathname==="/admin"||pathname==="/admin/"?"admin.html":decodeURIComponent(pathname).replace(/^\\/+/,"");const path=resolve(publicDir,rel);if(path!==publicDir&&!path.startsWith(publicDir+sep))return false;try{if(!(await stat(path)).isFile())return false;const data=await readFile(path);res.writeHead(200,headers({"content-type":mime[extname(path)]||"application/octet-stream","content-length":data.length,"cache-control":process.env.NODE_ENV==="production"?"public,max-age=3600":"no-store"}));res.end(data);return true;}catch{return false;}}'''
+          new='''async function staticFile(pathname,res){let rel;try{rel=pathname==="/"?"index.html":pathname==="/admin"||pathname==="/admin/"?"admin.html":decodeURIComponent(pathname).replace(/^\\/+/,"");}catch{return false;}const path=resolve(publicDir,rel);if(path!==publicDir&&!path.startsWith(publicDir+sep))return false;try{if(!(await stat(path)).isFile())return false;const data=await readFile(path);res.writeHead(200,headers({"content-type":mime[extname(path)]||"application/octet-stream","content-length":data.length,"cache-control":"no-store"}));res.end(data);return true;}catch{return false;}}'''
+          if old not in t: raise SystemExit('staticFile not found')
+          t=t.replace(old,new,1)
+          old='''if(req.method==="GET"&&path==="/api/me"){const session=await accountSession(req);const extra=session.setCookie?.length?{"set-cookie":session.setCookie}:{};const {setCookie,...body}=session;return send(res,200,body,extra);}\nif(req.method==="POST"&&path==="/api/contract/refresh")'''
+          new='''if(req.method==="GET"&&path==="/api/me"){const session=await accountSession(req);const {setCookie,...body}=session;return send(res,200,body,sessionResponseHeaders(session));}\nif(req.method==="POST"&&path==="/api/logout"){if(!originOk(req,res))return;const setCookie=await accountLogout(req);return send(res,200,{ok:true},{"set-cookie":setCookie});}\nif(req.method==="POST"&&path==="/api/contract/refresh")'''
+          if old not in t: raise SystemExit('/api/me anchor not found')
+          t=t.replace(old,new,1)
+          old='''const downloadMatch=path.match(/^\\/api\\/packages\\/([^/]+)\\/download$/);if(req.method==="POST"&&downloadMatch){if(!contractReady(res))return;const access=await viewerGate(req,res);'''
+          new='''const downloadMatch=path.match(/^\\/api\\/packages\\/([^/]+)\\/download$/);if(req.method==="POST"&&downloadMatch){if(!originOk(req,res)||!contractReady(res))return;const access=await viewerGate(req,res);'''
+          if old not in t: raise SystemExit('download route not found')
+          t=t.replace(old,new,1)
+          p.write_text(t)
+
+          # Keep browser code same-origin for all auth operations.
+          p=Path('public/app.js'); t=p.read_text()
+          t=t.replace('const ACCOUNTS = "https://accounts.digitalisierungsplanung.de";\n','',1)
+          old='''async function logout() {\n  try { await fetch(`${ACCOUNTS}/logout`, { method: "POST", credentials: "include", cache: "no-store" }); }\n  catch {}'''
+          new='''async function logout() {\n  try { await json("/api/logout", { method: "POST" }); }\n  catch {}'''
+          if old not in t: raise SystemExit('app logout not found')
+          t=t.replace(old,new,1)
+          p.write_text(t)
+
+          p=Path('public/admin.js'); t=p.read_text()
+          t=t.replace('const ACCOUNTS = "https://accounts.digitalisierungsplanung.de";\n','',1)
+          old='''$("#accountLogout")?.addEventListener("click", async () => {\n  try { await fetch(`${ACCOUNTS}/logout`, { method: "POST", credentials: "include", cache: "no-store" }); } catch {}\n  location.href = loginUrl();\n});'''
+          new='''$("#accountLogout")?.addEventListener("click", async () => {\n  try { await json("/api/logout", { method: "POST" }); } catch {}\n  location.href = loginUrl();\n});'''
+          if old not in t: raise SystemExit('admin logout not found')
+          t=t.replace(old,new,1)
+          t=t.replace('''  showGate(`Angemeldet als <strong>${escapeHtml(me.email)}</strong>.<br>Presets anlegen können nur Admin-Konten. Mit <code>chris.hohlfeld@gmail.com</code> anmelden reicht — das Konto ist Admin.`);''','''  showGate(`Angemeldet als <strong>${escapeHtml(me.email)}</strong>.<br>Dieses Konto hat keine Admin-Berechtigung.`);''',1)
+          p.write_text(t)
+
+          p=Path('tests/ui.test.js'); t=p.read_text()
+          t=t.replace('''  assert.match(app, /\\/api\\/me/);\n  assert.match(app, /mode=login/);''','''  assert.match(app, /\\/api\\/me/);\n  assert.match(app, /\\/api\\/logout/);\n  assert.doesNotMatch(app, /accounts\\.digitalisierungsplanung\\.de/);\n  assert.match(app, /mode=login/);''',1)
+          t=t.replace('''  assert.match(adminJs, /\\/api\\/me/);\n  assert.doesNotMatch(adminJs, /\\/api\\/license\\/me/);''','''  assert.match(adminJs, /\\/api\\/me/);\n  assert.match(adminJs, /\\/api\\/logout/);\n  assert.doesNotMatch(adminJs, /\\/api\\/license\\/me/);\n  assert.doesNotMatch(adminJs, /accounts\\.digitalisierungsplanung\\.de/);\n  assert.doesNotMatch(adminJs, /chris\\.hohlfeld@gmail\\.com/);\n  assert.match(server, /forwardSessionCookie\\(res,session\\)/);\n  assert.match(server, /path==="\\/api\\/logout"/);\n  assert.match(server, /"cache-control":"no-store"/);''',1)
+          p.write_text(t)
+
+          Path('.github/workflows/_oneoff-market-auth-hardening.yml').unlink()
+          PY
+          npm test
+          git diff --check
+      - name: Commit hardened market
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Harden market account boundary"
+          git push origin HEAD:main
