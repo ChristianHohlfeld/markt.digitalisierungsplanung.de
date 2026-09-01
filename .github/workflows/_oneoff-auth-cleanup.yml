@@ -1,0 +1,61 @@
+name: One-off market auth cleanup
+on:
+  push:
+    paths:
+      - .github/workflows/_oneoff-auth-cleanup.yml
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Patch
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          def r(path, old, new):
+              p=Path(path); t=p.read_text(); c=t.count(old)
+              if c!=1: raise SystemExit(f'{path}: expected 1, got {c}: {old[:80]!r}')
+              p.write_text(t.replace(old,new,1))
+
+          r('server.js',
+            'async function viewerGate(req,res){\n  const session=await accountSession(req);',
+            '''async function accountLogout(req, fetcher=globalThis.fetch){\n  const cookie=sessionCookie(req);\n  if(!cookie)return ['dp_session=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0; Secure; Domain=.digitalisierungsplanung.de'];\n  try{\n    const response=await fetcher(`${ACCOUNTS_ORIGIN}/logout`,{method:"POST",headers:{cookie:`dp_session=${cookie}`,accept:"application/json"},signal:AbortSignal.timeout(5000)});\n    const setCookie=forwardedSetCookie(response);\n    return setCookie.length?setCookie:['dp_session=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0; Secure; Domain=.digitalisierungsplanung.de'];\n  }catch{return ['dp_session=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0; Secure; Domain=.digitalisierungsplanung.de'];}\n}\nasync function viewerGate(req,res){\n  const session=await accountSession(req);''')
+          r('server.js',
+            'if(req.method==="GET"&&path==="/api/me"){const session=await accountSession(req);const extra=session.setCookie?.length?{"set-cookie":session.setCookie}:{};const {setCookie,...body}=session;return send(res,200,body,extra);}',
+            'if(req.method==="GET"&&path==="/api/me"){const session=await accountSession(req);const extra=session.setCookie?.length?{"set-cookie":session.setCookie}:{};const {setCookie,...body}=session;return send(res,200,body,extra);}\nif(req.method==="POST"&&path==="/api/logout"){const setCookie=await accountLogout(req);return send(res,200,{ok:true},{"set-cookie":setCookie});}')
+
+          p=Path('public/admin.js'); t=p.read_text()
+          t=t.replace('const ACCOUNTS = "https://accounts.digitalisierungsplanung.de";\n','')
+          t=t.replace('function loginUrl() { return `${LOGIN}?next=${encodeURIComponent(location.origin + "/admin")}`; }','function loginUrl() { return `${LOGIN}?mode=login&next=${encodeURIComponent(location.origin + "/admin")}`; }')
+          start=t.index('async function readAccountsSession() {')
+          end=t.index('\n\nfunction showGate', start)
+          t=t[:start]+t[end+2:]
+          t=t.replace('try { me = await readAccountsSession() || await json("/api/me"); }\ncatch { try { me = await json("/api/me"); } catch { me = { authenticated: false, isAdmin: false }; } }','try { me = await json("/api/me"); }\ncatch { me = { authenticated: false, isAdmin: false }; }')
+          t=t.replace('try { await fetch(`${ACCOUNTS}/logout`, { method: "POST", credentials: "include" }); } catch {}','try { await json("/api/logout", { method: "POST" }); } catch {}')
+          t=t.replace('identity.textContent = "Zugang";','identity.textContent = "Anmelden";')
+          p.write_text(t)
+
+          for path in ['public/index.html','public/admin.html']:
+              p=Path(path); t=p.read_text(); t=t.replace('>Zugang</a>','>Anmelden</a>'); p.write_text(t)
+
+          p=Path('tests/ui.test.js'); t=p.read_text()
+          t=t.replace('id="accountIdentity"[^>]*>Zugang<\\/a>', 'id="accountIdentity"[^>]*>Anmelden<\\/a>')
+          t=t.replace('assert.match(app, /accounts\\.digitalisierungsplanung\\.de/);\n  assert.match(app, /\\/api\\/license\\/me/);\n  assert.match(app, /credentials: "include"/);\n  assert.match(app, /Bitte öffnen Sie Ihren Zugang/);', 'assert.match(app, /\\/api\\/me/);\n  assert.match(app, /\\/api\\/logout/);\n  assert.doesNotMatch(app, /\\/api\\/license\\/me/);\n  assert.match(app, /Bitte anmelden/);')
+          t=t.replace('assert.match(adminJs, /accounts\\.digitalisierungsplanung\\.de/);\n  assert.match(adminJs, /\\/api\\/license\\/me/);', 'assert.match(adminJs, /\\/api\\/me/);\n  assert.match(adminJs, /\\/api\\/logout/);\n  assert.doesNotMatch(adminJs, /\\/api\\/license\\/me/);')
+          p.write_text(t)
+
+          Path('.github/workflows/_oneoff-auth-cleanup.yml').unlink()
+          PY
+          npm test
+          git diff --check
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Canonicalize market account session"
+          git push origin HEAD:main
