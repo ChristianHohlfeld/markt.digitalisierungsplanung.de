@@ -91,7 +91,7 @@ async function publishGate(req,res){
   if(!same(bearer(req),PUBLISH_TOKEN)){send(res,401,{error:"unauthorized"});return {ok:false};}
   return {ok:true,via:"publish",status:"pending"};
 }
-function originOk(req,res){const origin=req.headers.origin;if(origin&&origin!==PUBLIC_ORIGIN){send(res,403,{error:"forbidden_origin"});return false;}return true;}
+function originOk(req,res){const origin=req.headers.origin,site=String(req.headers["sec-fetch-site"]||"").toLowerCase();if((origin&&origin!==PUBLIC_ORIGIN)||site==="cross-site"){send(res,403,{error:"forbidden_origin"});return false;}return true;}
 function rateOk(req,res){const ip=clientIp(req),now=Date.now();if(requests.size>4096)for(const [key,value]of requests)if(now-value.start>120000)requests.delete(key);const slot=requests.get(ip)||{start:now,count:0};if(now-slot.start>60000){slot.start=now;slot.count=0;}slot.count++;requests.set(ip,slot);if(slot.count>300){send(res,429,{error:"rate_limited"},{"retry-after":"60"});return false;}return true;}
 async function bodyJson(req,res){let size=0,chunks=[];for await(const chunk of req){size+=chunk.length;if(size>524288){send(res,413,{error:"payload_too_large"});return null;}chunks.push(chunk);}try{return JSON.parse(Buffer.concat(chunks).toString("utf8")||"null");}catch{send(res,400,{error:"invalid_json"});return null;}}
 function contractReady(res){if(contract.info().ready)return true;send(res,503,{error:"canonical_contract_unavailable",contract:contract.info()});return false;}

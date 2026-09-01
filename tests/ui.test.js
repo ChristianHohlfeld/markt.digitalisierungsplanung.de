@@ -68,4 +68,5 @@ test("admin dashboard is a simple publish form gated by account session", async 
   assert.match(server, /forwardSessionCookie\(res,session\)/);
   assert.match(server, /path==="\/api\/logout"/);
   assert.match(server, /"cache-control":"no-store"/);
+  assert.match(server, /sec-fetch-site/);
 });
