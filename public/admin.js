@@ -4,7 +4,7 @@ const LOGIN = "https://digitalisierungsplanung.de/login.html";
 const EDITOR = "https://accounts.digitalisierungsplanung.de/state.html";
 const ACCOUNTS = "https://accounts.digitalisierungsplanung.de";
 let me = { authenticated: false, isAdmin: false };
-function loginUrl() { return `${LOGIN}?next=${encodeURIComponent(location.origin + "/admin")}`; }
+function loginUrl() { return `${LOGIN}?mode=login&next=${encodeURIComponent(location.origin + "/admin")}`; }
 
 function escapeHtml(value) {
   const node = document.createElement("div");
@@ -13,7 +13,7 @@ function escapeHtml(value) {
 }
 
 async function json(url, options) {
-  const response = await fetch(url, { credentials: "same-origin", ...options, headers: { accept: "application/json", ...(options?.headers || {}) } });
+  const response = await fetch(url, { credentials: "same-origin", cache: "no-store", ...options, headers: { accept: "application/json", ...(options?.headers || {}) } });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
     const error = new Error(body.error || `${response.status}`);
@@ -32,23 +32,10 @@ function applySession() {
     identity.href = EDITOR;
     if (logout) logout.hidden = false;
   } else {
-    identity.textContent = "Zugang";
+    identity.textContent = "Anmelden";
     identity.href = loginUrl();
     if (logout) logout.hidden = true;
   }
-}
-
-async function readAccountsSession() {
-  const response = await fetch(`${ACCOUNTS}/api/license/me`, { credentials: "include", headers: { accept: "application/json" } });
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok || body.authenticated !== true) return null;
-  return {
-    authenticated: true,
-    isAdmin: body.isAdmin === true,
-    email: body.email || "",
-    package: body.package || null,
-    plan: body.plan || null
-  };
 }
 
 function showGate(html) {
@@ -264,12 +251,12 @@ $("#publishForm").addEventListener("submit", async event => {
   }
 });
 
-try { me = await readAccountsSession() || await json("/api/me"); }
-catch { try { me = await json("/api/me"); } catch { me = { authenticated: false, isAdmin: false }; } }
+try { me = await json("/api/me"); }
+catch { me = { authenticated: false, isAdmin: false }; }
 if (!me || me.authenticated !== true) me = { authenticated: false, isAdmin: false };
 applySession();
 $("#accountLogout")?.addEventListener("click", async () => {
-  try { await fetch(`${ACCOUNTS}/logout`, { method: "POST", credentials: "include" }); } catch {}
+  try { await fetch(`${ACCOUNTS}/logout`, { method: "POST", credentials: "include", cache: "no-store" }); } catch {}
   location.href = loginUrl();
 });
 
