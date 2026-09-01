@@ -29,6 +29,8 @@ test("market is a consumer catalog in landing styles, not a developer registry",
   assert.match(app, /\/api\/me/);
   assert.match(app, /\/api\/logout/);
   assert.doesNotMatch(app, /const ACCOUNTS|fetch\(`\$\{ACCOUNTS\}/);
+  assert.doesNotMatch(app, /credentials:\s*"include"/);
+  assert.match(app, /credentials:\s*"same-origin"/);
   assert.match(app, /mode=login/);
   assert.match(app, /addPresetButton/);
   assert.match(app, /isAdmin/);
@@ -46,6 +48,9 @@ test("preset catalog and package delivery are gated server-side by account entit
   assert.match(server, /downloadMatch[^\n]*viewerGate/);
   assert.match(server, /detailMatch[^\n]*viewerGate/);
   assert.match(server, /package_not_entitled/);
+  assert.match(server, /timingSafeEqual/);
+  assert.match(server, /forwardSessionCookie\(res,session\)/);
+  assert.match(server, /sec-fetch-site/);
 });
 
 test("admin dashboard is a simple publish form gated by account session", async () => {
@@ -64,9 +69,8 @@ test("admin dashboard is a simple publish form gated by account session", async 
   assert.match(adminJs, /\/api\/logout/);
   assert.doesNotMatch(adminJs, /\/api\/license\/me/);
   assert.doesNotMatch(adminJs, /const ACCOUNTS|fetch\(`\$\{ACCOUNTS\}/);
+  assert.doesNotMatch(adminJs, /credentials:\s*"include"/);
   assert.doesNotMatch(adminJs, /chris\.hohlfeld@gmail\.com/);
-  assert.match(server, /forwardSessionCookie\(res,session\)/);
   assert.match(server, /path==="\/api\/logout"/);
   assert.match(server, /"cache-control":"no-store"/);
-  assert.match(server, /sec-fetch-site/);
 });
