@@ -38,7 +38,7 @@ function applySession() {
     identity.href = EDITOR;
     if (logout) logout.hidden = false;
   } else {
-    identity.textContent = "Anmelden";
+    identity.textContent = "Zugang";
     identity.href = loginUrl();
     if (logout) logout.hidden = true;
   }
@@ -73,7 +73,7 @@ async function logout() {
   applySession();
   packages = [];
   count.textContent = "0";
-  setState("Bitte anmelden, um die für Ihr Paket verfügbaren Presets zu sehen.");
+  setState("Bitte öffnen Sie Ihren Zugang, um die verfügbaren Presets zu sehen.");
 }
 
 async function loadCategories() {
@@ -108,7 +108,7 @@ async function loadPackages() {
   try { const result = await json(`/api/packages?${params}`); packages = result.packages; render(); }
   catch (error) {
     packages = []; count.textContent = "—";
-    setState(error.status === 401 ? "Bitte anmelden, um die für Ihr Paket verfügbaren Presets zu sehen." : "Der Markt ist momentan nicht erreichbar.");
+    setState(error.status === 401 ? "Bitte öffnen Sie Ihren Zugang, um die verfügbaren Presets zu sehen." : "Der Markt ist momentan nicht erreichbar.");
   }
 }
 

@@ -32,7 +32,7 @@ function applySession() {
     identity.href = EDITOR;
     if (logout) logout.hidden = false;
   } else {
-    identity.textContent = "Anmelden";
+    identity.textContent = "Zugang";
     identity.href = loginUrl();
     if (logout) logout.hidden = true;
   }

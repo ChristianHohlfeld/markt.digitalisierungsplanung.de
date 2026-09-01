@@ -18,6 +18,7 @@ test("market is a consumer catalog in landing styles, not a developer registry",
   assert.match(html, /Presets anlegen/);
   assert.match(html, /Abmelden/);
   assert.match(html, /login\.html\?next=/);
+  assert.match(html, /id="accountIdentity"[^>]*>Zugang<\/a>/);
   assert.doesNotMatch(html, /Preset Registry/);
   assert.doesNotMatch(html, /ENTWICKLER/);
   assert.doesNotMatch(html, /Manifest abrufen/);
@@ -30,6 +31,8 @@ test("market is a consumer catalog in landing styles, not a developer registry",
   assert.match(app, /isAdmin/);
   assert.match(app, /accounts\.digitalisierungsplanung\.de/);
   assert.match(app, /\/api\/license\/me/);
+  assert.match(app, /credentials: "include"/);
+  assert.match(app, /Bitte öffnen Sie Ihren Zugang/);
 });
 
 test("preset catalog and package delivery are gated server-side by account entitlement", () => {
@@ -55,6 +58,7 @@ test("admin dashboard is a simple publish form gated by account session", async 
   assert.match(adminJs, /isAdmin/);
   assert.match(adminJs, /login\.html/);
   assert.match(adminJs, /\?next=/);
+  assert.match(admin, /id="accountIdentity"[^>]*>Zugang<\/a>/);
   assert.match(adminJs, /accounts\.digitalisierungsplanung\.de/);
   assert.match(adminJs, /\/api\/license\/me/);
 });
