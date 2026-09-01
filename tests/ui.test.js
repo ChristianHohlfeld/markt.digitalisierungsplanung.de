@@ -27,6 +27,8 @@ test("market is a consumer catalog in landing styles, not a developer registry",
   assert.match(css, /\.btn-primary/);
   assert.match(css, /\.site-header/);
   assert.match(app, /\/api\/me/);
+  assert.match(app, /\/api\/logout/);
+  assert.doesNotMatch(app, /const ACCOUNTS|fetch\(`\$\{ACCOUNTS\}/);
   assert.match(app, /mode=login/);
   assert.match(app, /addPresetButton/);
   assert.match(app, /isAdmin/);
@@ -59,5 +61,11 @@ test("admin dashboard is a simple publish form gated by account session", async 
   assert.match(adminJs, /login\.html/);
   assert.match(adminJs, /\?mode=login&next=/);
   assert.match(adminJs, /\/api\/me/);
+  assert.match(adminJs, /\/api\/logout/);
   assert.doesNotMatch(adminJs, /\/api\/license\/me/);
+  assert.doesNotMatch(adminJs, /const ACCOUNTS|fetch\(`\$\{ACCOUNTS\}/);
+  assert.doesNotMatch(adminJs, /chris\.hohlfeld@gmail\.com/);
+  assert.match(server, /forwardSessionCookie\(res,session\)/);
+  assert.match(server, /path==="\/api\/logout"/);
+  assert.match(server, /"cache-control":"no-store"/);
 });

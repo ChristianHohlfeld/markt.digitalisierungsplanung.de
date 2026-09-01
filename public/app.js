@@ -4,7 +4,6 @@ const state = $("#state");
 const count = $("#packageCount");
 const dialog = $("#detailDialog");
 const EDITOR = "https://accounts.digitalisierungsplanung.de/state.html";
-const ACCOUNTS = "https://accounts.digitalisierungsplanung.de";
 const LOGIN = "https://digitalisierungsplanung.de/login.html";
 let packages = [];
 let me = { authenticated: false, isAdmin: false };
@@ -60,7 +59,7 @@ async function loadSession() {
 }
 
 async function logout() {
-  try { await fetch(`${ACCOUNTS}/logout`, { method: "POST", credentials: "include", cache: "no-store" }); }
+  try { await json("/api/logout", { method: "POST" }); }
   catch {}
   me = { authenticated: false, isAdmin: false };
   applySession();

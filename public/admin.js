@@ -2,7 +2,6 @@ import { buildPresetPackage, coercePackage, CATEGORIES } from "./preset-form.js"
 const $ = selector => document.querySelector(selector);
 const LOGIN = "https://digitalisierungsplanung.de/login.html";
 const EDITOR = "https://accounts.digitalisierungsplanung.de/state.html";
-const ACCOUNTS = "https://accounts.digitalisierungsplanung.de";
 let me = { authenticated: false, isAdmin: false };
 function loginUrl() { return `${LOGIN}?mode=login&next=${encodeURIComponent(location.origin + "/admin")}`; }
 
@@ -256,14 +255,14 @@ catch { me = { authenticated: false, isAdmin: false }; }
 if (!me || me.authenticated !== true) me = { authenticated: false, isAdmin: false };
 applySession();
 $("#accountLogout")?.addEventListener("click", async () => {
-  try { await fetch(`${ACCOUNTS}/logout`, { method: "POST", credentials: "include", cache: "no-store" }); } catch {}
+  try { await json("/api/logout", { method: "POST" }); } catch {}
   location.href = loginUrl();
 });
 
 if (!me.authenticated) {
   showGate(`Bitte zuerst <a href="${loginUrl()}">anmelden</a>. Danach kommst du direkt hierher zurück.`);
 } else if (!me.isAdmin) {
-  showGate(`Angemeldet als <strong>${escapeHtml(me.email)}</strong>.<br>Presets anlegen können nur Admin-Konten. Mit <code>chris.hohlfeld@gmail.com</code> anmelden reicht — das Konto ist Admin.`);
+  showGate(`Angemeldet als <strong>${escapeHtml(me.email)}</strong>.<br>Dieses Konto hat keine Admin-Berechtigung.`);
 } else {
   $("#gate").hidden = true;
   $("#publishForm").hidden = false;

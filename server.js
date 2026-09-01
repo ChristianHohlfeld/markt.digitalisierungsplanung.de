@@ -1,4 +1,6 @@
 import { createServer } from "node:http";
+import { timingSafeEqual } from "node:crypto";
+import { isIP } from "node:net";
 import { readFile, stat } from "node:fs/promises";
 import { extname, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -18,16 +20,30 @@ const contract = new CanonicalContract(SCHEMA_URL), registry = new Registry(REGI
 await registry.load(); await contract.refresh();
 const requests = new Map();
 
-function headers(extra={}) { return { "content-security-policy":"default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://accounts.digitalisierungsplanung.de; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://digitalisierungsplanung.de", "x-content-type-options":"nosniff", "referrer-policy":"no-referrer", "permissions-policy":"camera=(), microphone=(), geolocation=()", "cross-origin-opener-policy":"same-origin", ...extra }; }
+function headers(extra={}) { return { "content-security-policy":"default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'", "x-content-type-options":"nosniff", "referrer-policy":"no-referrer", "permissions-policy":"camera=(), microphone=(), geolocation=()", "cross-origin-opener-policy":"same-origin", "cross-origin-resource-policy":"same-origin", "cache-control":"no-store", ...extra }; }
 function send(res,status,body,extra={}) { const data=typeof body==="string"?body:JSON.stringify(body); res.writeHead(status,headers({"content-type":typeof body==="string"?"text/plain; charset=utf-8":"application/json; charset=utf-8","content-length":Buffer.byteLength(data),...extra})); res.end(data); }
 function recordView(record){return{id:record.manifest.id,name:record.manifest.name,description:record.manifest.description||"",publisher:record.manifest.publisher,version:record.manifest.version,plan:normalizePlan(record.plan||"trial"),planLabel:planLabel(record.plan||"trial"),status:record.status,categories:record.manifest.contributes.categories,presetCount:record.manifest.contributes.presets.length,presets:record.manifest.contributes.presets.map(p=>({id:p.id,title:p.title,description:p.description||"",categoryId:p.categoryId})),downloads:record.downloads||0,updatedAt:record.updatedAt};}
-function bearer(req){const v=req.headers.authorization||"";return v.startsWith("Bearer ")?v.slice(7):"";} function same(a,b){if(!a||!b||a.length!==b.length)return false;let x=0;for(let i=0;i<a.length;i++)x|=a.charCodeAt(i)^b.charCodeAt(i);return x===0;}
-function sessionCookie(req){const raw=String(req.headers.cookie||"");const match=raw.match(/(?:^|; )dp_session=([^;]+)/);return match?match[1]:"";}
+function bearer(req){const v=req.headers.authorization||"";return v.startsWith("Bearer ")?v.slice(7):"";}
+function same(a,b){const left=Buffer.from(String(a||""),"utf8"),right=Buffer.from(String(b||""),"utf8");return left.length>0&&left.length===right.length&&timingSafeEqual(left,right);}
+function sessionCookie(req){for(const part of String(req.headers.cookie||"").split(";")){const [name,...rest]=part.trim().split("=");if(name==="dp_session"&&rest.length)return rest.join("=");}return "";}
 function forwardedSetCookie(response){
   if(!response||!response.headers)return [];
   if(typeof response.headers.getSetCookie==="function")return response.headers.getSetCookie().filter(Boolean);
   const raw=response.headers.get("set-cookie");
   return raw?[raw]:[];
+}
+function sessionResponseHeaders(session){return session?.setCookie?.length?{"set-cookie":session.setCookie}:{};}
+function forwardSessionCookie(res,session){if(session?.setCookie?.length)res.setHeader("set-cookie",session.setCookie);}
+function clientIp(req){
+  const normalize=value=>String(value||"").replace(/^::ffff:/,"").trim();
+  const remote=normalize(req.socket?.remoteAddress),loopback=remote==="127.0.0.1"||remote==="::1";
+  if(loopback){const forwarded=normalize(String(req.headers["x-real-ip"]||"").split(",")[0]);if(isIP(forwarded))return forwarded;}
+  return isIP(remote)?remote:"unknown";
+}
+async function accountLogout(req,fetcher=globalThis.fetch){
+  const fallback=['dp_session=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0; Secure; Domain=.digitalisierungsplanung.de'];
+  const cookie=sessionCookie(req);if(!cookie)return fallback;
+  try{const response=await fetcher(`${ACCOUNTS_ORIGIN}/logout`,{method:"POST",headers:{cookie:`dp_session=${cookie}`,accept:"application/json"},signal:AbortSignal.timeout(5000)});const setCookie=forwardedSetCookie(response);return setCookie.length?setCookie:fallback;}catch{return fallback;}
 }
 async function accountSession(req, fetcher=globalThis.fetch){
   const cookie=sessionCookie(req);
@@ -42,6 +58,7 @@ async function accountSession(req, fetcher=globalThis.fetch){
 }
 async function viewerGate(req,res){
   const session=await accountSession(req);
+  forwardSessionCookie(res,session);
   const viewer=viewerPlan(session);
   if(!viewer){send(res,401,{error:"authentication_required"});return {ok:false,session,viewer:null};}
   return {ok:true,session,viewer};
@@ -54,41 +71,44 @@ function visibleCategories(viewer){
   return [...map.values()].sort((a,b)=>a.label.localeCompare(b.label,"de"));
 }
 async function adminIdentity(req){
-  if(ADMIN_TOKEN&&same(bearer(req),ADMIN_TOKEN))return {ok:true,via:"token"};
+  if(ADMIN_TOKEN&&same(bearer(req),ADMIN_TOKEN))return {ok:true,via:"token",setCookie:[]};
   const session=await accountSession(req);
-  if(session.isAdmin)return {ok:true,via:"session",email:session.email};
-  return {ok:false};
+  if(session.isAdmin)return {ok:true,via:"session",email:session.email,setCookie:session.setCookie||[]};
+  return {ok:false,setCookie:session.setCookie||[]};
 }
 async function adminGate(req,res){
   const identity=await adminIdentity(req);
+  forwardSessionCookie(res,identity);
   if(identity.ok)return identity;
   send(res,401,{error:"unauthorized"});
   return {ok:false};
 }
 async function publishGate(req,res){
   const admin=await adminIdentity(req);
+  forwardSessionCookie(res,admin);
   if(admin.ok)return {...admin,status:"published"};
   if(!PUBLISH_TOKEN){send(res,503,{error:"publishing_disabled"});return {ok:false};}
   if(!same(bearer(req),PUBLISH_TOKEN)){send(res,401,{error:"unauthorized"});return {ok:false};}
   return {ok:true,via:"publish",status:"pending"};
 }
 function originOk(req,res){const origin=req.headers.origin;if(origin&&origin!==PUBLIC_ORIGIN){send(res,403,{error:"forbidden_origin"});return false;}return true;}
-function rateOk(req,res){const ip=req.socket.remoteAddress||"unknown",now=Date.now(),slot=requests.get(ip)||{start:now,count:0};if(now-slot.start>60000){slot.start=now;slot.count=0;}slot.count++;requests.set(ip,slot);if(slot.count>300){send(res,429,{error:"rate_limited"},{"retry-after":"60"});return false;}return true;}
+function rateOk(req,res){const ip=clientIp(req),now=Date.now();if(requests.size>4096)for(const [key,value]of requests)if(now-value.start>120000)requests.delete(key);const slot=requests.get(ip)||{start:now,count:0};if(now-slot.start>60000){slot.start=now;slot.count=0;}slot.count++;requests.set(ip,slot);if(slot.count>300){send(res,429,{error:"rate_limited"},{"retry-after":"60"});return false;}return true;}
 async function bodyJson(req,res){let size=0,chunks=[];for await(const chunk of req){size+=chunk.length;if(size>524288){send(res,413,{error:"payload_too_large"});return null;}chunks.push(chunk);}try{return JSON.parse(Buffer.concat(chunks).toString("utf8")||"null");}catch{send(res,400,{error:"invalid_json"});return null;}}
 function contractReady(res){if(contract.info().ready)return true;send(res,503,{error:"canonical_contract_unavailable",contract:contract.info()});return false;}
 async function canonicalValid(manifest,res,{invalidStatus=422}={}){const checked=await contract.validateCanonical(manifest);if(checked.ok)return true;if(checked.unavailable){send(res,503,{error:"canonical_validator_unavailable",details:checked.errors});return false;}send(res,invalidStatus,{error:"invalid_package",details:checked.errors});return false;}
 const mime={".html":"text/html; charset=utf-8",".css":"text/css; charset=utf-8",".js":"text/javascript; charset=utf-8",".json":"application/json; charset=utf-8",".ico":"image/x-icon"};
-async function staticFile(pathname,res){const rel=pathname==="/"?"index.html":pathname==="/admin"||pathname==="/admin/"?"admin.html":decodeURIComponent(pathname).replace(/^\/+/,"");const path=resolve(publicDir,rel);if(path!==publicDir&&!path.startsWith(publicDir+sep))return false;try{if(!(await stat(path)).isFile())return false;const data=await readFile(path);res.writeHead(200,headers({"content-type":mime[extname(path)]||"application/octet-stream","content-length":data.length,"cache-control":process.env.NODE_ENV==="production"?"public,max-age=3600":"no-store"}));res.end(data);return true;}catch{return false;}}
+async function staticFile(pathname,res){let rel;try{rel=pathname==="/"?"index.html":pathname==="/admin"||pathname==="/admin/"?"admin.html":decodeURIComponent(pathname).replace(/^\/+/,"");}catch{return false;}const path=resolve(publicDir,rel);if(path!==publicDir&&!path.startsWith(publicDir+sep))return false;try{if(!(await stat(path)).isFile())return false;const data=await readFile(path);res.writeHead(200,headers({"content-type":mime[extname(path)]||"application/octet-stream","content-length":data.length,"cache-control":"no-store"}));res.end(data);return true;}catch{return false;}}
 
 const server=createServer(async(req,res)=>{try{if(!rateOk(req,res))return;const url=new URL(req.url,`http://${req.headers.host||"localhost"}`),path=url.pathname;
 if(req.method==="GET"&&path==="/healthz")return send(res,contract.info().ready?200:503,{ok:contract.info().ready,contract:contract.info(),packages:registry.list().length});
 if(req.method==="GET"&&path==="/api/contract")return send(res,200,contract.info());
-if(req.method==="GET"&&path==="/api/me"){const session=await accountSession(req);const extra=session.setCookie?.length?{"set-cookie":session.setCookie}:{};const {setCookie,...body}=session;return send(res,200,body,extra);}
+if(req.method==="GET"&&path==="/api/me"){const session=await accountSession(req);const {setCookie,...body}=session;return send(res,200,body,sessionResponseHeaders(session));}
+if(req.method==="POST"&&path==="/api/logout"){if(!originOk(req,res))return;const setCookie=await accountLogout(req);return send(res,200,{ok:true},{"set-cookie":setCookie});}
 if(req.method==="POST"&&path==="/api/contract/refresh"){if(!originOk(req,res)||!(await adminGate(req,res)).ok)return;const ok=await contract.refresh();return send(res,ok?200:503,contract.info());}
 if(req.method==="GET"&&path==="/api/categories"){const access=await viewerGate(req,res);if(!access.ok)return;return send(res,200,{categories:visibleCategories(access.viewer)});}
 if(req.method==="GET"&&path==="/api/packages"){const access=await viewerGate(req,res);if(!access.ok)return;const items=visibleRecords(access.viewer,{q:url.searchParams.get("q")||"",category:url.searchParams.get("category")||"",sort:url.searchParams.get("sort")||"newest"});return send(res,200,{packages:items.map(recordView),total:items.length});}
 const manifestMatch=path.match(/^\/api\/packages\/([^/]+)\/manifest$/);if(req.method==="GET"&&manifestMatch){if(!contractReady(res))return;const access=await viewerGate(req,res);if(!access.ok)return;const r=registry.get(decodeURIComponent(manifestMatch[1]));if(!r)return send(res,404,{error:"not_found"});if(!entitled(r,access.viewer))return send(res,403,{error:"package_not_entitled"});if(!(await canonicalValid(r.manifest,res,{invalidStatus:503})))return;return send(res,200,r.manifest);}
-const downloadMatch=path.match(/^\/api\/packages\/([^/]+)\/download$/);if(req.method==="POST"&&downloadMatch){if(!contractReady(res))return;const access=await viewerGate(req,res);if(!access.ok)return;const r=registry.get(decodeURIComponent(downloadMatch[1]));if(!r)return send(res,404,{error:"not_found"});if(!entitled(r,access.viewer))return send(res,403,{error:"package_not_entitled"});if(!(await canonicalValid(r.manifest,res,{invalidStatus:503})))return;await registry.countDownload(r.manifest.id);return send(res,200,{manifest:r.manifest});}
+const downloadMatch=path.match(/^\/api\/packages\/([^/]+)\/download$/);if(req.method==="POST"&&downloadMatch){if(!originOk(req,res)||!contractReady(res))return;const access=await viewerGate(req,res);if(!access.ok)return;const r=registry.get(decodeURIComponent(downloadMatch[1]));if(!r)return send(res,404,{error:"not_found"});if(!entitled(r,access.viewer))return send(res,403,{error:"package_not_entitled"});if(!(await canonicalValid(r.manifest,res,{invalidStatus:503})))return;await registry.countDownload(r.manifest.id);return send(res,200,{manifest:r.manifest});}
 const detailMatch=path.match(/^\/api\/packages\/([^/]+)$/);if(req.method==="GET"&&detailMatch){const access=await viewerGate(req,res);if(!access.ok)return;const r=registry.get(decodeURIComponent(detailMatch[1]));if(!r)return send(res,404,{error:"not_found"});return !entitled(r,access.viewer)?send(res,403,{error:"package_not_entitled"}):send(res,200,recordView(r));}
 if(req.method==="GET"&&path==="/api/admin/packages"){if(!(await adminGate(req,res)).ok)return;const items=registry.list({q:url.searchParams.get("q")||"",includePending:true,sort:url.searchParams.get("sort")||"newest"});return send(res,200,{packages:items.map(recordView),total:items.length});}
 if(req.method==="POST"&&path==="/api/packages"){if(!originOk(req,res)||!contractReady(res))return;const gate=await publishGate(req,res);if(!gate.ok)return;const body=await bodyJson(req,res);if(body===null)return;const wrapped=body&&typeof body==="object"&&body.package&&body.package.schema==="preset-package/1";const manifest=wrapped?body.package:body;const plan=normalizePlan((wrapped?body.plan:body&&body.plan)||url.searchParams.get("plan"));if(!(await canonicalValid(manifest,res)))return;const previous=registry.get(manifest.id);if(previous&&previous.manifest.publisher!==manifest.publisher)return send(res,409,{error:"publisher_mismatch"});const r=await registry.upsert(manifest,gate.status,plan);return send(res,previous?200:201,{id:r.manifest.id,status:r.status,version:r.manifest.version,plan:r.plan});}
