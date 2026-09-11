@@ -12,3 +12,11 @@
 .step-row .btn-ghost{min-height:44px;width:42px;padding:0;font-size:1.4rem}
 .file-label small{display:block;margin-top:6px;text-transform:none;letter-spacing:0;font-weight:500}
 @media(max-width:700px){.form-row,.step-row{grid-template-columns:1fr}}
+
+.ga-consent{position:fixed;z-index:60;left:14px;right:14px;bottom:18px;max-width:920px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:18px;padding:14px 16px;border:1px solid var(--line2);border-radius:8px;background:#fff;box-shadow:0 14px 40px rgba(15,23,42,.14);color:var(--muted);font-size:.86rem}
+.ga-consent[hidden]{display:none!important}
+.ga-consent p{margin:0;max-width:64ch}
+.ga-consent strong{color:var(--text)}
+.ga-consent a{color:var(--navy);font-weight:700}
+.ga-consent-actions{display:flex;gap:8px;flex:0 0 auto}
+@media(max-width:700px){.ga-consent{flex-direction:column;align-items:stretch;left:12px;right:12px}.ga-consent-actions{width:100%}.ga-consent-actions .btn-primary,.ga-consent-actions .btn-secondary{flex:1}}

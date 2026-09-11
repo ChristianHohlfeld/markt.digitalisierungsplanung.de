@@ -25,9 +25,9 @@
     </nav>
     <div class="account-nav">
       <a class="btn-primary" id="addPresetButton" href="/admin" hidden>Preset hinzufügen</a>
-      <a class="btn-secondary" id="accountIdentity" href="https://digitalisierungsplanung.de/login.html?mode=login&amp;next=https%3A%2F%2Fmarkt.digitalisierungsplanung.de%2F">Anmelden</a>
+      <a class="btn-secondary" id="accountIdentity" data-ga-cta="anmelden" href="https://digitalisierungsplanung.de/login.html?mode=login&amp;next=https%3A%2F%2Fmarkt.digitalisierungsplanung.de%2F">Anmelden</a>
       <button class="btn-ghost" id="accountLogout" type="button" hidden>Abmelden</button>
-      <a class="btn-primary" id="accountPrimary" href="https://accounts.digitalisierungsplanung.de/state.html">Editor öffnen</a>
+      <a class="btn-primary" id="accountPrimary" data-ga-cta="editor_oeffnen" href="https://accounts.digitalisierungsplanung.de/state.html">Editor öffnen</a>
     </div>
   </div>
 </header>
@@ -39,8 +39,8 @@
         <h1>Fertige Bausteine für prüfbare Abläufe.</h1>
         <p class="hero-subline">Entdecken Sie geprüfte Presets für typische Schritte, Entscheidungen und Aufnahmen. Ein Klick übernimmt sie in den Editor – als normale Zustände, ohne Extra-Runtime.</p>
         <div class="hero-actions">
-          <a class="btn-primary" href="#katalog">Presets entdecken</a>
-          <a class="btn-secondary" href="https://accounts.digitalisierungsplanung.de/state.html">Im Editor verwenden</a>
+          <a class="btn-primary" data-ga-cta="presets_entdecken" href="#katalog">Presets entdecken</a>
+          <a class="btn-secondary" data-ga-cta="editor_hero" href="https://accounts.digitalisierungsplanung.de/state.html">Im Editor verwenden</a>
         </div>
       </div>
       <div class="registry-card" aria-label="So funktioniert der Markt">
@@ -67,7 +67,7 @@
     </div>
   </section>
 </main>
-<footer class="site-footer"><div class="container footer-row"><span>© 2026 digitalisierungsplanung.de</span><div class="footer-links"><a href="https://aktuell.digitalisierungsplanung.de/">Aktuell</a><a href="https://digitalisierungsplanung.de/preise.html">Preise</a><a href="https://digitalisierungsplanung.de/agb.html">AGB</a><a href="https://digitalisierungsplanung.de/datenschutz.html">Datenschutz</a><a href="https://digitalisierungsplanung.de/impressum.html">Impressum</a></div></div></footer>
+<footer class="site-footer"><div class="container footer-row"><span>© 2026 digitalisierungsplanung.de</span><div class="footer-links"><a href="https://aktuell.digitalisierungsplanung.de/">Aktuell</a><a href="https://digitalisierungsplanung.de/preise.html">Preise</a><a href="https://digitalisierungsplanung.de/agb.html">AGB</a><a href="https://digitalisierungsplanung.de/datenschutz.html#analyse">Datenschutz</a><a href="https://digitalisierungsplanung.de/impressum.html">Impressum</a></div></div></footer>
 
 <dialog id="detailDialog" class="detail-dialog">
   <article>
@@ -80,12 +80,22 @@
     <h3>Enthaltene Schritte</h3>
     <div id="detailPresets" class="preset-list"></div>
     <div class="dialog-actions">
-      <a class="btn-primary" id="installButton" href="https://accounts.digitalisierungsplanung.de/state.html">Im Editor verwenden</a>
-      <button class="btn-secondary" id="copyButton" type="button">Paket kopieren</button>
+      <a class="btn-primary" id="installButton" data-ga-cta="editor_install" href="https://accounts.digitalisierungsplanung.de/state.html">Im Editor verwenden</a>
+      <button class="btn-secondary" id="copyButton" type="button" data-ga-cta="paket_kopieren">Paket kopieren</button>
     </div>
   </article>
 </dialog>
 
+
+<div id="gaConsentBanner" class="ga-consent" hidden role="dialog" aria-live="polite" aria-label="Einwilligung zur Analyse">
+  <p><strong>Analyse nur mit Einwilligung.</strong> Google Analytics hilft uns zu verstehen, welche Presets genutzt werden. Ohne Zustimmung wird nichts geladen. <a data-ga-privacy href="https://digitalisierungsplanung.de/datenschutz.html#analyse">Datenschutz</a></p>
+  <div class="ga-consent-actions">
+    <button type="button" class="btn-secondary" id="gaConsentDecline">Ablehnen</button>
+    <button type="button" class="btn-primary" id="gaConsentAccept">Akzeptieren</button>
+  </div>
+</div>
+
+<script type="module" src="/analytics.js"></script>
 <script type="module" src="/app.js"></script>
 </body>
 </html>

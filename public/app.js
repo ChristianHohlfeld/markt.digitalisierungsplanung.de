@@ -1,3 +1,4 @@
+import { trackListingOpen } from "./analytics.js";
 const $ = selector => document.querySelector(selector);
 const grid = $("#grid");
 const state = $("#state");
@@ -124,6 +125,7 @@ function openDetail(id) {
     } catch (error) { toast(error.status === 403 ? "Dieses Preset ist in Ihrem Paket nicht enthalten." : "Paket konnte nicht geladen werden."); }
   };
   dialog.showModal();
+  trackListingOpen(item);
 }
 
 let timer;
