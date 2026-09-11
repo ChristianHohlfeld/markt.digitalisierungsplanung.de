@@ -8,6 +8,34 @@
   <title>Markt · digitalisierungsplanung.de</title>
   <link rel="icon" href="https://digitalisierungsplanung.de/favicon.ico" sizes="any">
   <link rel="stylesheet" href="/styles.css">
+  <script>
+  (function () {
+    var KEY = "dp_ga_consent";
+    var MAX = 15552000;
+    function readCookie() {
+      var m = document.cookie.match(/(?:^|;\s*)dp_ga_consent=(granted|denied)(?:;|$)/);
+      return m ? m[1] : null;
+    }
+    function writeCookie(v) {
+      var host = location.hostname;
+      var domain = (host === "digitalisierungsplanung.de" || /\.digitalisierungsplanung\.de$/i.test(host))
+        ? "; Domain=.digitalisierungsplanung.de" : "";
+      var secure = location.protocol === "https:" ? "; Secure" : "";
+      document.cookie = KEY + "=" + v + "; Path=/; Max-Age=" + MAX + "; SameSite=Lax" + secure + domain;
+    }
+    var v = readCookie();
+    if (!v) {
+      try { v = localStorage.getItem(KEY); } catch (e) {}
+      if (v === "granted" || v === "denied") {
+        writeCookie(v);
+        try { localStorage.removeItem(KEY); } catch (e) {}
+      } else {
+        v = null;
+      }
+    }
+    document.documentElement.setAttribute("data-dp-ga", (v === "granted" || v === "denied") ? v : "pending");
+  })();
+  </script>
 </head>
 <body>
 <header class="site-header">
