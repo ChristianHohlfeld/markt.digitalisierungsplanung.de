@@ -1,86 +1,27 @@
-const MEASUREMENT_ID = "G-2RVDZ8354D";
-const CONSENT_KEY = "dp_ga_consent";
-const CONSENT_MAX_AGE = 15552000; // 180 days
-const PRIVACY_HREF = "https://digitalisierungsplanung.de/datenschutz.html#analyse";
+const ALLOWED = new Set(["listing_open", "cta_click"]);
 
-function cookieDomain() {
-  const host = location.hostname;
-  if (host === "digitalisierungsplanung.de" || host.endsWith(".digitalisierungsplanung.de")) {
-    return "; Domain=.digitalisierungsplanung.de";
-  }
-  return "";
-}
-
-function readCookieConsent() {
-  const match = document.cookie.match(/(?:^|;\s*)dp_ga_consent=(granted|denied)(?:;|$)/);
-  return match ? match[1] : null;
-}
-
-function writeCookieConsent(value) {
-  const secure = location.protocol === "https:" ? "; Secure" : "";
-  document.cookie =
-    `${CONSENT_KEY}=${value}; Path=/; Max-Age=${CONSENT_MAX_AGE}; SameSite=Lax${secure}${cookieDomain()}`;
-}
-
-function readLocalConsent() {
-  try { return localStorage.getItem(CONSENT_KEY); }
-  catch { return null; }
-}
-
-function clearLocalConsent() {
-  try { localStorage.removeItem(CONSENT_KEY); }
-  catch {}
-}
-
-function normalizeConsent(value) {
-  return value === "granted" || value === "denied" ? value : null;
-}
-
-/** Cookie first; migrate leftover localStorage once. */
-function readConsent() {
-  const fromCookie = normalizeConsent(readCookieConsent());
-  if (fromCookie) return fromCookie;
-  const fromLocal = normalizeConsent(readLocalConsent());
-  if (fromLocal) {
-    writeCookieConsent(fromLocal);
-    clearLocalConsent();
-    return fromLocal;
-  }
-  return null;
-}
-
-function applyConsentState(value) {
-  const state = normalizeConsent(value) || "pending";
-  document.documentElement.setAttribute("data-dp-ga", state);
-  const banner = document.getElementById("gaConsentBanner");
-  if (banner) banner.hidden = state !== "pending";
-}
-
-function writeConsent(value) {
-  if (!normalizeConsent(value)) return;
-  writeCookieConsent(value);
-  clearLocalConsent();
-  applyConsentState(value);
-}
-
-let booted = false;
-function bootGtag() {
-  if (booted) return;
-  booted = true;
-  window.dataLayer = window.dataLayer || [];
-  window.gtag = function gtag() { window.dataLayer.push(arguments); };
-  window.gtag("js", new Date());
-  window.gtag("config", MEASUREMENT_ID, { anonymize_ip: true });
-  const script = document.createElement("script");
-  script.async = true;
-  script.src = `https://www.googletagmanager.com/gtag/js?id=${MEASUREMENT_ID}`;
-  document.head.append(script);
-}
-
-export function track(name, params) {
-  if (readConsent() !== "granted") return;
-  if (typeof window.gtag !== "function") return;
-  window.gtag("event", name, params || {});
+function track(name, params = {}) {
+  if (!ALLOWED.has(name)) return;
+  const payload = JSON.stringify({
+    event: name,
+    path: String(location.pathname || "/").slice(0, 200),
+    listing_id: params.listing_id ? String(params.listing_id).slice(0, 80) : undefined,
+    listing_name: params.listing_name ? String(params.listing_name).slice(0, 120) : undefined,
+    cta_label: params.cta_label ? String(params.cta_label).slice(0, 100) : undefined,
+    link_url: params.link_url ? String(params.link_url).slice(0, 300) : undefined
+  });
+  try {
+    const blob = new Blob([payload], { type: "application/json" });
+    if (navigator.sendBeacon && navigator.sendBeacon("/api/metrics", blob)) return;
+    fetch("/api/metrics", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: payload,
+      keepalive: true,
+      credentials: "omit",
+      cache: "no-store"
+    }).catch(() => {});
+  } catch {}
 }
 
 export function trackListingOpen(item) {
@@ -97,27 +38,6 @@ export function trackCtaClick(label, href) {
   });
 }
 
-function wireBanner() {
-  document.getElementById("gaConsentAccept")?.addEventListener("click", () => {
-    writeConsent("granted");
-    bootGtag();
-  });
-  document.getElementById("gaConsentDecline")?.addEventListener("click", () => {
-    writeConsent("denied");
-  });
-}
-
-export function initAnalytics() {
-  const privacy = document.querySelector("#gaConsentBanner a[data-ga-privacy]");
-  if (privacy) privacy.href = PRIVACY_HREF;
-  wireBanner();
-  const consent = readConsent();
-  applyConsentState(consent);
-  if (consent === "granted") {
-    bootGtag();
-  }
-}
-
 document.addEventListener("click", event => {
   const cta = event.target.closest("[data-ga-cta]");
   if (!cta) return;
@@ -125,5 +45,3 @@ document.addEventListener("click", event => {
   const href = cta.getAttribute("href") || undefined;
   trackCtaClick(label, href);
 });
-
-initAnalytics();

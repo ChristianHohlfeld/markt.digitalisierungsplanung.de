@@ -74,3 +74,19 @@ test("admin dashboard is a simple publish form gated by account session", async 
   assert.match(server, /path==="\/api\/logout"/);
   assert.match(server, /"cache-control":"no-store"/);
 });
+
+test("cookieless first-party metrics replace GA consent", async () => {
+  const analytics = await readFile(join(root, "public/analytics.js"), "utf8");
+  const privacy = await readFile(join(root, "public/datenschutz.html"), "utf8");
+  assert.match(analytics, /\/api\/metrics/);
+  assert.match(analytics, /listing_open/);
+  assert.match(analytics, /cta_click/);
+  assert.match(analytics, /sendBeacon/);
+  assert.doesNotMatch(analytics, /googletagmanager|gtag|dp_ga_consent|G-2RVDZ8354D/);
+  assert.match(server, /\/api\/metrics/);
+  assert.doesNotMatch(server, /googletagmanager|google-analytics/);
+  assert.doesNotMatch(html, /gaConsentBanner|dp_ga_consent|data-dp-ga/);
+  assert.match(privacy, /id="analyse"/);
+  assert.match(privacy, /Art\. 6 Abs\. 1 lit\. f/);
+  assert.doesNotMatch(privacy, /Google Analytics 4|G-2RVDZ8354D|dp_ga_consent/);
+});

@@ -1,7 +1,7 @@
 import { createServer } from "node:http";
 import { timingSafeEqual } from "node:crypto";
 import { isIP } from "node:net";
-import { readFile, stat } from "node:fs/promises";
+import { appendFile, mkdir, readFile, stat } from "node:fs/promises";
 import { extname, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CanonicalContract } from "./contract.js";
@@ -20,7 +20,26 @@ const contract = new CanonicalContract(SCHEMA_URL), registry = new Registry(REGI
 await registry.load(); await contract.refresh();
 const requests = new Map();
 
-function headers(extra={}) { return { "content-security-policy":"default-src 'self'; script-src 'self' https://www.googletagmanager.com; style-src 'self'; img-src 'self' data: https://www.googletagmanager.com https://www.google-analytics.com; connect-src 'self' https://www.google-analytics.com https://analytics.google.com https://region1.google-analytics.com https://www.googletagmanager.com; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'", "x-content-type-options":"nosniff", "referrer-policy":"no-referrer", "permissions-policy":"camera=(), microphone=(), geolocation=()", "cross-origin-opener-policy":"same-origin", "cross-origin-resource-policy":"same-origin", "cache-control":"no-store", ...extra }; }
+const METRICS_ALLOWED = new Set(["listing_open", "cta_click"]);
+const METRICS_DIR = resolve(process.env.METRICS_DIR || resolve(root, ".data"));
+const METRICS_PATH = resolve(METRICS_DIR, "metrics.jsonl");
+const METRICS_RETENTION_DAYS = 90;
+const metricsRates = new Map();
+function metricsLimited(ip){
+  const now=Date.now(), prev=metricsRates.get(ip)||[];
+  const next=prev.filter(x=>now-x<60000);
+  if(next.length>=120){ metricsRates.set(ip,next); return true; }
+  next.push(now); metricsRates.set(ip,next);
+  if(metricsRates.size>10000){ for(const [key,hits] of metricsRates){ if(!hits.some(x=>now-x<60000)) metricsRates.delete(key); } }
+  return false;
+}
+async function recordMetric(row){
+  await mkdir(METRICS_DIR, { recursive: true });
+  await appendFile(METRICS_PATH, JSON.stringify(row) + "\n", "utf8");
+}
+
+
+function headers(extra={}) { return { "content-security-policy":"default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'", "x-content-type-options":"nosniff", "referrer-policy":"no-referrer", "permissions-policy":"camera=(), microphone=(), geolocation=()", "cross-origin-opener-policy":"same-origin", "cross-origin-resource-policy":"same-origin", "cache-control":"no-store", ...extra }; }
 function send(res,status,body,extra={}) { const data=typeof body==="string"?body:JSON.stringify(body); res.writeHead(status,headers({"content-type":typeof body==="string"?"text/plain; charset=utf-8":"application/json; charset=utf-8","content-length":Buffer.byteLength(data),...extra})); res.end(data); }
 function recordView(record){return{id:record.manifest.id,name:record.manifest.name,description:record.manifest.description||"",publisher:record.manifest.publisher,version:record.manifest.version,plan:normalizePlan(record.plan||"trial"),planLabel:planLabel(record.plan||"trial"),status:record.status,categories:record.manifest.contributes.categories,presetCount:record.manifest.contributes.presets.length,presets:record.manifest.contributes.presets.map(p=>({id:p.id,title:p.title,description:p.description||"",categoryId:p.categoryId})),downloads:record.downloads||0,updatedAt:record.updatedAt};}
 function bearer(req){const v=req.headers.authorization||"";return v.startsWith("Bearer ")?v.slice(7):"";}
@@ -114,6 +133,8 @@ if(req.method==="GET"&&path==="/api/admin/packages"){if(!(await adminGate(req,re
 if(req.method==="POST"&&path==="/api/packages"){if(!originOk(req,res)||!contractReady(res))return;const gate=await publishGate(req,res);if(!gate.ok)return;const body=await bodyJson(req,res);if(body===null)return;const wrapped=body&&typeof body==="object"&&body.package&&body.package.schema==="preset-package/1";const manifest=wrapped?body.package:body;const plan=normalizePlan((wrapped?body.plan:body&&body.plan)||url.searchParams.get("plan"));if(!(await canonicalValid(manifest,res)))return;const previous=registry.get(manifest.id);if(previous&&previous.manifest.publisher!==manifest.publisher)return send(res,409,{error:"publisher_mismatch"});const r=await registry.upsert(manifest,gate.status,plan);return send(res,previous?200:201,{id:r.manifest.id,status:r.status,version:r.manifest.version,plan:r.plan});}
 const adminMatch=path.match(/^\/api\/admin\/packages\/([^/]+)\/status$/);if(req.method==="PATCH"&&adminMatch){if(!originOk(req,res)||!(await adminGate(req,res)).ok||!contractReady(res))return;const body=await bodyJson(req,res);if(body===null)return;const id=decodeURIComponent(adminMatch[1]),r=registry.get(id);if(!r)return send(res,404,{error:"not_found"});if(body.status){const status=String(body.status);if(!["pending","published","rejected"].includes(status))return send(res,422,{error:"invalid_status"});if(!(await canonicalValid(r.manifest,res)))return;await registry.setStatus(id,status);}if(body.plan)await registry.setPlan(id,body.plan);const fresh=registry.get(id);return send(res,200,{id,status:fresh.status,plan:fresh.plan});}
 const adminItem=path.match(/^\/api\/admin\/packages\/([^/]+)$/);if(req.method==="DELETE"&&adminItem){if(!originOk(req,res)||!(await adminGate(req,res)).ok)return;const id=decodeURIComponent(adminItem[1]);const removed=await registry.remove(id);return removed?send(res,200,{id,removed:true}):send(res,404,{error:"not_found"});}
+
+if(req.method==="POST"&&path==="/api/metrics"){if(!originOk(req,res))return;if(metricsLimited(clientIp(req)))return send(res,429,{error:"rate_limited"},{"retry-after":"60"});const body=await bodyJson(req,res);if(body===null)return;const event=String(body.event||"");if(!METRICS_ALLOWED.has(event))return send(res,400,{error:"invalid_event"});const day=new Date().toISOString().slice(0,10);await recordMetric({event,path:String(body.path||"").slice(0,200),listing_id:body.listing_id!=null?String(body.listing_id).slice(0,80):"",listing_name:body.listing_name!=null?String(body.listing_name).slice(0,120):"",cta_label:body.cta_label!=null?String(body.cta_label).slice(0,100):"",link_url:body.link_url!=null?String(body.link_url).slice(0,300):"",day,createdAt:new Date().toISOString()});res.writeHead(204,headers());return res.end();}
 if(req.method==="GET"&&await staticFile(path,res))return;send(res,404,{error:"not_found"});}catch(error){console.error(error);if(!res.headersSent)send(res,500,{error:"internal_error"});else res.destroy();}});
 if(process.env.NODE_ENV!=="test")server.listen(PORT,HOST,()=>{console.log(`markt listening on http://${HOST}:${PORT}`);console.log(`canonical preset contract: ${contract.info().ready?"ready":`UNAVAILABLE: ${contract.info().error}`}`);});
 export{server,contract,registry};

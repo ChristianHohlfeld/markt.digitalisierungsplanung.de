@@ -8,34 +8,6 @@
   <title>Markt · digitalisierungsplanung.de</title>
   <link rel="icon" href="https://digitalisierungsplanung.de/favicon.ico" sizes="any">
   <link rel="stylesheet" href="/styles.css">
-  <script>
-  (function () {
-    var KEY = "dp_ga_consent";
-    var MAX = 15552000;
-    function readCookie() {
-      var m = document.cookie.match(/(?:^|;\s*)dp_ga_consent=(granted|denied)(?:;|$)/);
-      return m ? m[1] : null;
-    }
-    function writeCookie(v) {
-      var host = location.hostname;
-      var domain = (host === "digitalisierungsplanung.de" || /\.digitalisierungsplanung\.de$/i.test(host))
-        ? "; Domain=.digitalisierungsplanung.de" : "";
-      var secure = location.protocol === "https:" ? "; Secure" : "";
-      document.cookie = KEY + "=" + v + "; Path=/; Max-Age=" + MAX + "; SameSite=Lax" + secure + domain;
-    }
-    var v = readCookie();
-    if (!v) {
-      try { v = localStorage.getItem(KEY); } catch (e) {}
-      if (v === "granted" || v === "denied") {
-        writeCookie(v);
-        try { localStorage.removeItem(KEY); } catch (e) {}
-      } else {
-        v = null;
-      }
-    }
-    document.documentElement.setAttribute("data-dp-ga", (v === "granted" || v === "denied") ? v : "pending");
-  })();
-  </script>
 </head>
 <body>
 <header class="site-header">
@@ -115,12 +87,6 @@
 </dialog>
 
 
-<div id="gaConsentBanner" class="ga-consent" hidden role="dialog" aria-live="polite" aria-label="Einwilligung zur Analyse">
-  <p><strong>Analyse nur mit Einwilligung.</strong> Google Analytics hilft uns zu verstehen, welche Presets genutzt werden. Ohne Zustimmung wird nichts geladen. <a data-ga-privacy href="https://digitalisierungsplanung.de/datenschutz.html#analyse">Datenschutz</a></p>
-  <div class="ga-consent-actions">
-    <button type="button" class="btn-secondary" id="gaConsentDecline">Ablehnen</button>
-    <button type="button" class="btn-primary" id="gaConsentAccept">Akzeptieren</button>
-  </div>
 </div>
 
 <script type="module" src="/analytics.js"></script>
