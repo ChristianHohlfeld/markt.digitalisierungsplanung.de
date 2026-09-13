@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="description" content="Preset-Marktplatz für digitalisierungsplanung.de: geprüfte Prozessbausteine entdecken und im Editor übernehmen.">
   <meta name="theme-color" content="#fcfcfd">
+  <script src="https://digitalisierungsplanung.de/assets/shared-theme-boot.js"></script>
+  <link rel="stylesheet" href="https://digitalisierungsplanung.de/assets/shared-theme.css">
+  <script src="https://digitalisierungsplanung.de/assets/shared-theme.js" defer></script>
   <title>Markt · digitalisierungsplanung.de</title>
   <link rel="icon" href="https://digitalisierungsplanung.de/favicon.ico" sizes="any">
   <link rel="stylesheet" href="/styles.css">
@@ -23,7 +26,7 @@
       <a class="nav-link" href="https://digitalisierungsplanung.de/preise.html">Preise</a>
       <a class="nav-link" href="https://aktuell.digitalisierungsplanung.de/">Aktuell</a>
     </nav>
-    <div class="account-nav">
+    <div class="account-nav" data-dp-theme-mount>
       <a class="btn-primary" id="addPresetButton" href="/admin" hidden>Preset hinzufügen</a>
       <a class="btn-secondary" id="accountIdentity" data-ga-cta="anmelden" href="https://digitalisierungsplanung.de/login.html?mode=login&amp;next=https%3A%2F%2Fmarkt.digitalisierungsplanung.de%2F">Anmelden</a>
       <button class="btn-ghost" id="accountLogout" type="button" hidden>Abmelden</button>
@@ -88,8 +91,6 @@
 
 
 </div>
-
-<script src="https://digitalisierungsplanung.de/assets/shared-theme.js" defer></script>
 <script type="module" src="/analytics.js"></script>
 <script type="module" src="/app.js"></script>
 </body>
