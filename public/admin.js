@@ -1,4 +1,4 @@
-import { buildPresetPackage, coercePackage, CATEGORIES } from "./preset-form.js";
+import { buildPresetPackage, coercePackage, CATEGORIES, TRIGGERS } from "./preset-form.js";
 const $ = selector => document.querySelector(selector);
 const LOGIN = "https://digitalisierungsplanung.de/login.html";
 const EDITOR = "https://accounts.digitalisierungsplanung.de/state.html";
@@ -50,22 +50,17 @@ async function loadList() {
   $("#packageCount").textContent = String(result.total || 0);
   const list = $("#list");
   if (!result.packages?.length) {
-    list.innerHTML = '<div class="state-message">Noch keine Presets. Oben Name und Schritte eintragen.</div>';
+    list.innerHTML = '<div class="state-message">Noch keine Presets.</div>';
     return;
   }
   list.innerHTML = result.packages.map(item => `<article class="admin-row" data-id="${escapeHtml(item.id)}">
-    <div>
-      <strong>${escapeHtml(item.name)}</strong>
-      <div class="hint">${escapeHtml(item.id)} · v${escapeHtml(item.version)}</div>
-    </div>
-    <label><span class="sr-only">Paket</span>
-      <select data-plan>
-        <option value="trial"${item.plan === "trial" ? " selected" : ""}>Test</option>
-        <option value="starter"${item.plan === "starter" ? " selected" : ""}>Starter</option>
-        <option value="expert"${item.plan === "expert" ? " selected" : ""}>Team</option>
-        <option value="enterprise"${item.plan === "enterprise" ? " selected" : ""}>Unternehmen</option>
-      </select>
-    </label>
+    <div><strong>${escapeHtml(item.name)}</strong><div class="hint">${escapeHtml(item.id)} · v${escapeHtml(item.version)}</div></div>
+    <label><span class="sr-only">Paket</span><select data-plan>
+      <option value="trial"${item.plan === "trial" ? " selected" : ""}>Test</option>
+      <option value="starter"${item.plan === "starter" ? " selected" : ""}>Starter</option>
+      <option value="expert"${item.plan === "expert" ? " selected" : ""}>Team</option>
+      <option value="enterprise"${item.plan === "enterprise" ? " selected" : ""}>Unternehmen</option>
+    </select></label>
     <span class="chip">${escapeHtml(item.status === "published" ? "Live" : item.status === "pending" ? "Wartend" : "Abgelehnt")}</span>
     <div class="admin-row-actions">
       ${item.status === "published" ? "" : `<button class="btn-primary" type="button" data-publish>Freigeben</button>`}
@@ -76,11 +71,7 @@ async function loadList() {
 }
 
 async function patch(id, body) {
-  await json(`/api/admin/packages/${encodeURIComponent(id)}/status`, {
-    method: "PATCH",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body)
-  });
+  await json(`/api/admin/packages/${encodeURIComponent(id)}/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
   await loadList();
 }
 
@@ -103,40 +94,94 @@ $("#list").addEventListener("click", async event => {
       await json(`/api/admin/packages/${encodeURIComponent(row.dataset.id)}`, { method: "DELETE" });
       await loadList();
     }
-  } catch (error) {
-    $("#publishStatus").textContent = error.body?.error || "Aktion fehlgeschlagen.";
-  }
+  } catch (error) { $("#publishStatus").textContent = error.body?.error || "Aktion fehlgeschlagen."; }
 });
 
 let importedPackage = null;
-
-function stepRows() {
-  return [...document.querySelectorAll(".step-row")];
+function stepRows() { return [...document.querySelectorAll(".step-row")]; }
+function pretty(value) { return value && Object.keys(value).length ? JSON.stringify(value, null, 2) : ""; }
+function parseObject(value, label) {
+  const text = String(value || "").trim();
+  if (!text) return {};
+  try {
+    const parsed = JSON.parse(text);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error();
+    return parsed;
+  } catch {
+    const error = new Error(`${label} muss ein JSON-Objekt sein.`);
+    error.code = "invalid_object";
+    throw error;
+  }
 }
 
-function addStepRow(title = "", body = "") {
+function transitionByFrom(preset) {
+  return new Map((preset?.transitions || []).map(item => [item.from, item]));
+}
+
+function addStepRow(step = {}) {
   const row = document.createElement("div");
   row.className = "step-row";
-  row.innerHTML = `<span class="step-index"></span>
-    <input class="step-title" type="text" maxlength="100" placeholder="Schritt, z. B. Antrag stellen">
-    <input class="step-body" type="text" maxlength="500" placeholder="optional kurz erklären">
-    <button class="btn-ghost step-remove" type="button" aria-label="Schritt entfernen">×</button>`;
-  row.querySelector(".step-title").value = title;
-  row.querySelector(".step-body").value = body;
+  row.innerHTML = `<div class="step-head"><span class="step-index"></span><strong>State</strong><button class="btn-ghost step-remove" type="button" aria-label="State entfernen">×</button></div>
+    <div class="step-fields">
+      <label><span>State</span><input class="step-title" type="text" maxlength="100" placeholder="z. B. Daten aufbereitet"></label>
+      <label><span>State-Schlüssel</span><input class="step-key" type="text" maxlength="80" placeholder="wird aus dem Namen erzeugt"></label>
+    </div>
+    <label><span>Was ist hier erreicht / gelöst?</span><input class="step-body" type="text" maxlength="500" placeholder="z. B. Rechnungsdaten sind vereinheitlicht und prüfbar"></label>
+    <details class="step-data"><summary>Daten dieses States</summary><label><span>JSON-Objekt</span><textarea class="step-data-json" rows="3" placeholder='{"status":"normalized"}'></textarea></label></details>
+    <div class="step-transition">
+      <div class="edge-title">→ Übergang zum nächsten State</div>
+      <div class="step-fields transition-fields">
+        <label><span>Weiter wenn</span><select class="step-trigger">${TRIGGERS.map(item => `<option value="${item.id}">${item.label}</option>`).join("")}</select></label>
+        <label class="event-wrap"><span>Event</span><input class="step-event" type="text" maxlength="240" placeholder="z. B. invoice.normalized"></label>
+        <label><span>Entscheidung</span><select class="step-decision"><option value="routine">Alltag</option><option value="human">Mensch</option><option value="stop">Stopp</option></select></label>
+        <label class="timer-wrap" hidden><span>Timer ms</span><input class="step-timer" type="number" min="0" step="1" value="0"></label>
+      </div>
+      <details><summary>Optional: Bedingung & Daten schreiben</summary>
+        <label><span>Bedingung</span><input class="step-condition" type="text" maxlength="2000" placeholder="bestehende Contract-Bedingung"></label>
+        <label><span>Daten setzen</span><textarea class="step-set-json" rows="3" placeholder='{"status":"ready"}'></textarea></label>
+      </details>
+    </div>`;
+  row.querySelector(".step-title").value = step.title || "";
+  row.querySelector(".step-key").value = step.key || "";
+  row.querySelector(".step-body").value = step.body || "";
+  row.querySelector(".step-data-json").value = pretty(step.data || {});
+  row.querySelector(".step-trigger").value = step.triggerType || "event";
+  row.querySelector(".step-event").value = step.triggerEvent || "";
+  row.querySelector(".step-decision").value = step.decision || "routine";
+  row.querySelector(".step-condition").value = step.condition || "";
+  row.querySelector(".step-set-json").value = pretty(step.set || {});
+  row.querySelector(".step-timer").value = Number.isFinite(Number(step.timerMs)) ? String(step.timerMs) : "0";
   $("#stepList").append(row);
+  updateTriggerFields(row);
   numberSteps();
 }
 
+function updateTriggerFields(row) {
+  const trigger = row.querySelector(".step-trigger").value;
+  row.querySelector(".event-wrap").hidden = trigger !== "event";
+  row.querySelector(".timer-wrap").hidden = trigger !== "timer";
+}
+
 function numberSteps() {
-  stepRows().forEach((row, index) => {
+  const rows = stepRows();
+  rows.forEach((row, index) => {
     row.querySelector(".step-index").textContent = String(index + 1);
+    row.querySelector(".step-transition").hidden = index === rows.length - 1;
   });
 }
 
 function readSteps() {
   return stepRows().map(row => ({
+    key: row.querySelector(".step-key").value.trim(),
     title: row.querySelector(".step-title").value.trim(),
-    body: row.querySelector(".step-body").value.trim()
+    body: row.querySelector(".step-body").value.trim(),
+    data: parseObject(row.querySelector(".step-data-json").value, "State-Daten"),
+    triggerType: row.querySelector(".step-trigger").value,
+    triggerEvent: row.querySelector(".step-event").value.trim(),
+    decision: row.querySelector(".step-decision").value,
+    timerMs: Number(row.querySelector(".step-timer").value || 0),
+    condition: row.querySelector(".step-condition").value.trim(),
+    set: parseObject(row.querySelector(".step-set-json").value, "Daten setzen")
   })).filter(step => step.title);
 }
 
@@ -159,20 +204,16 @@ function resetForm() {
   $("#customCategoryWrap").hidden = true;
   $("#publishPlan").value = "trial";
   $("#publishFile").value = "";
-  $("#fileHint").textContent = "Optional. Editor-Export oder Paketdatei — fehlende Hülle ergänzen wir.";
+  $("#fileHint").textContent = "Optional. Bestehendes Preset-Paket importieren.";
   $("#stepList").innerHTML = "";
-  addStepRow();
-  addStepRow();
+  addStepRow({ triggerType: "event" });
+  addStepRow({ triggerType: "event" });
 }
 
 function packageFromForm() {
   if (importedPackage) {
     const name = $("#presetName").value.trim();
-    return {
-      ...importedPackage,
-      name: name || importedPackage.name,
-      description: $("#presetDescription").value.trim() || importedPackage.description
-    };
+    return { ...importedPackage, name: name || importedPackage.name, description: $("#presetDescription").value.trim() || importedPackage.description };
   }
   const category = categoryChoice();
   return buildPresetPackage({
@@ -185,17 +226,19 @@ function packageFromForm() {
   });
 }
 
-$("#presetCategory").addEventListener("change", () => {
-  $("#customCategoryWrap").hidden = $("#presetCategory").value !== "__custom";
+$("#presetCategory").addEventListener("change", () => { $("#customCategoryWrap").hidden = $("#presetCategory").value !== "__custom"; });
+$("#addStep").addEventListener("click", () => { importedPackage = null; addStepRow({ triggerType: "event" }); });
+$("#stepList").addEventListener("change", event => {
+  const row = event.target.closest(".step-row");
+  if (row && event.target.matches(".step-trigger")) updateTriggerFields(row);
+  importedPackage = null;
 });
-
-$("#addStep").addEventListener("click", () => addStepRow());
 $("#stepList").addEventListener("click", event => {
   const remove = event.target.closest(".step-remove");
   if (!remove) return;
   remove.closest(".step-row").remove();
   importedPackage = null;
-  if (!stepRows().length) addStepRow();
+  if (!stepRows().length) addStepRow({ triggerType: "event" });
   numberSteps();
 });
 $("#stepList").addEventListener("input", () => { importedPackage = null; });
@@ -212,13 +255,18 @@ $("#publishFile").addEventListener("change", async event => {
     $("#presetDescription").value = pkg.description || "";
     const category = pkg.contributes.categories?.[0];
     if (category && CATEGORIES.some(item => item.id === category.id)) $("#presetCategory").value = category.id;
-    const states = pkg.contributes.presets[0]?.states || [];
+    const preset = pkg.contributes.presets[0];
+    const transitions = transitionByFrom(preset);
+    const states = preset?.states || [];
     $("#stepList").innerHTML = "";
-    states.forEach(state => addStepRow(state.title || state.key || "", state.body || ""));
-    if (!states.length) addStepRow();
-    hint.textContent = `Datei erkannt: ${pkg.name} · ${states.length || 1} Schritt${states.length === 1 ? "" : "e"}. Wird so veröffentlicht.`;
+    states.forEach(state => {
+      const transition = transitions.get(state.key) || {};
+      addStepRow({ key: state.key, title: state.title || state.key || "", body: state.body || "", data: state.data || {}, ...transition, decision: transition.decision || "routine" });
+    });
+    if (!states.length) addStepRow({ triggerType: "event" });
+    hint.textContent = `Datei erkannt: ${pkg.name} · ${states.length || 1} State${states.length === 1 ? "" : "s"}.`;
   } catch {
-    hint.textContent = "Diese Datei ist kein Preset. Name und Schritte unten ausfüllen.";
+    hint.textContent = "Diese Datei ist kein gültiges Preset-Paket.";
     event.target.value = "";
   }
 });
@@ -231,23 +279,16 @@ $("#publishForm").addEventListener("submit", async event => {
   submit.disabled = true;
   try {
     const pkg = packageFromForm();
-    await json("/api/packages", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ package: pkg, plan: $("#publishPlan").value })
-    });
+    await json("/api/packages", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ package: pkg, plan: $("#publishPlan").value }) });
     status.textContent = "Veröffentlicht.";
     resetForm();
     await loadList();
   } catch (error) {
-    status.textContent = error.code === "name_required"
-      ? "Bitte einen Namen eintragen."
-      : error.body?.error === "invalid_package"
-        ? "Die Angaben ergeben kein gültiges Preset. Name und mindestens einen Schritt prüfen."
-        : error.status === 401 ? "Nur Admins können veröffentlichen." : "Veröffentlichen fehlgeschlagen.";
-  } finally {
-    submit.disabled = false;
-  }
+    status.textContent = error.code === "name_required" ? "Bitte einen Namen eintragen."
+      : error.code === "invalid_object" ? error.message
+      : error.body?.error === "invalid_package" ? "Preset verletzt den Haupt-Contract. Bitte State/Übergang prüfen."
+      : error.status === 401 ? "Nur Admins können veröffentlichen." : "Veröffentlichen fehlgeschlagen.";
+  } finally { submit.disabled = false; }
 });
 
 try { me = await json("/api/me"); }
@@ -259,11 +300,9 @@ $("#accountLogout")?.addEventListener("click", async () => {
   location.href = loginUrl();
 });
 
-if (!me.authenticated) {
-  showGate(`Bitte zuerst <a href="${loginUrl()}">anmelden</a>. Danach kommst du direkt hierher zurück.`);
-} else if (!me.isAdmin) {
-  showGate(`Angemeldet als <strong>${escapeHtml(me.email)}</strong>.<br>Dieses Konto hat keine Admin-Berechtigung.`);
-} else {
+if (!me.authenticated) showGate(`Bitte zuerst <a href="${loginUrl()}">anmelden</a>. Danach kommst du direkt hierher zurück.`);
+else if (!me.isAdmin) showGate(`Angemeldet als <strong>${escapeHtml(me.email)}</strong>.<br>Dieses Konto hat keine Admin-Berechtigung.`);
+else {
   $("#gate").hidden = true;
   $("#publishForm").hidden = false;
   $("#listWrap").hidden = false;

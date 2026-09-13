@@ -12,6 +12,7 @@
   <title>Presets verwalten · Markt</title>
   <link rel="icon" href="https://digitalisierungsplanung.de/favicon.ico" sizes="any">
   <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/admin.css">
 </head>
 <body>
 <header class="site-header">
@@ -36,8 +37,8 @@
   <section class="hero-section admin-hero">
     <div class="container">
       <div class="eyebrow">Markt-Admin</div>
-      <h1>Presets veröffentlichen.</h1>
-      <p class="hero-subline">Name und Schritte eintragen, veröffentlichen. Das Schema füllt das Formular. Nutzer sehen danach nur Presets ihres Pakets.</p>
+      <h1>Preset bauen.</h1>
+      <p class="hero-subline">States definieren, Übergänge festlegen, Paket wählen, veröffentlichen. Das Ergebnis bleibt ein normaler FSM-Teilgraph.</p>
     </div>
   </section>
 
@@ -48,13 +49,13 @@
       <form id="publishForm" class="admin-card publish-form" hidden>
         <div class="section-tag">Neu</div>
         <h2>Preset hinzufügen</h2>
-        <p class="hint">Ein Titel, ein paar Schritte, fertig. JSON musst du nicht kennen.</p>
-        <label><span>Name</span><input id="presetName" type="text" required maxlength="100" placeholder="z. B. Urlaubsantrag"></label>
-        <label><span>Kurzbeschreibung</span><input id="presetDescription" type="text" maxlength="500" placeholder="Was dieser Ablauf kann"></label>
+        <p class="hint">Jede Karte ist ein State. Dazwischen liegt nur die normale Transition des Haupt-Contracts.</p>
+        <label><span>Name</span><input id="presetName" type="text" required maxlength="100" placeholder="z. B. Rechnung aufbereiten"></label>
+        <label><span>Welches Problem löst das Preset?</span><input id="presetDescription" type="text" maxlength="500" placeholder="z. B. uneinheitliche Rechnungsdaten in einen prüfbaren Zustand bringen"></label>
         <div class="form-row">
           <label><span>Kategorie</span>
             <select id="presetCategory">
-              <option value="basic">Basics</option>
+              <option value="basic">Basis</option>
               <option value="recording">Browser-Aufnahme</option>
               <option value="freigabe">Freigabe</option>
               <option value="antrag">Antrag</option>
@@ -74,12 +75,12 @@
           </label>
         </div>
         <div class="steps-block">
-          <span class="steps-label">Schritte</span>
-          <p class="hint">Jeder Schritt wird ein Zustand. Weiter führt zum nächsten.</p>
+          <span class="steps-label">States</span>
+          <p class="hint">State benennen. Optional Daten dieses Zustands eintragen. Für den Weg zum nächsten State Event, Bedingung und Entscheidung festlegen.</p>
           <div id="stepList" class="step-list"></div>
-          <button class="btn-secondary" id="addStep" type="button">Schritt hinzufügen</button>
+          <button class="btn-secondary" id="addStep" type="button">State hinzufügen</button>
         </div>
-        <label class="file-label"><span>Oder fertige Datei</span><input id="publishFile" type="file" accept="application/json,.json"><small class="hint" id="fileHint">Optional. Editor-Export oder Paketdatei — fehlende Hülle ergänzen wir.</small></label>
+        <label class="file-label"><span>Oder fertige Datei</span><input id="publishFile" type="file" accept="application/json,.json"><small class="hint" id="fileHint">Optional. Bestehendes Preset-Paket importieren.</small></label>
         <div class="dialog-actions">
           <button class="btn-primary" id="publishSubmit" type="submit">Veröffentlichen</button>
           <span class="hint" id="publishStatus"></span>

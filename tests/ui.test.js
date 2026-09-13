@@ -56,14 +56,21 @@ test("preset catalog and package delivery are gated server-side by account entit
   assert.match(server, /sec-fetch-site/);
 });
 
-test("admin dashboard is a simple publish form gated by account session", async () => {
+test("admin dashboard builds ordinary FSM preset fragments and stays account-admin gated", async () => {
   const admin = await readFile(join(root, "public/admin.html"), "utf8");
   const adminJs = await readFile(join(root, "public/admin.js"), "utf8");
-  assert.match(admin, /Presets veröffentlichen/);
+  const adminCss = await readFile(join(root, "public/admin.css"), "utf8");
+  assert.match(admin, /Preset bauen/);
+  assert.match(admin, /normaler FSM-Teilgraph/);
   assert.match(admin, /Sichtbar ab Paket/);
-  assert.match(admin, /presetName/);
-  assert.match(admin, /Schritt hinzufügen/);
+  assert.match(admin, /Welches Problem löst das Preset/);
+  assert.match(admin, /State hinzufügen/);
   assert.doesNotMatch(admin, /preset-package\/1/);
+  assert.match(adminJs, /step-key/);
+  assert.match(adminJs, /step-trigger/);
+  assert.match(adminJs, /step-event/);
+  assert.match(adminJs, /step-decision/);
+  assert.match(adminJs, /step-set-json/);
   assert.match(adminJs, /\/api\/admin\/packages/);
   assert.match(adminJs, /isAdmin/);
   assert.match(adminJs, /login\.html/);
@@ -74,6 +81,7 @@ test("admin dashboard is a simple publish form gated by account session", async 
   assert.doesNotMatch(adminJs, /const ACCOUNTS|fetch\(`\$\{ACCOUNTS\}/);
   assert.doesNotMatch(adminJs, /credentials:\s*"include"/);
   assert.doesNotMatch(adminJs, /chris\.hohlfeld@gmail\.com/);
+  assert.match(adminCss, /\.step-transition/);
   assert.match(server, /path==="\/api\/logout"/);
   assert.match(server, /"cache-control":"no-store"/);
 });

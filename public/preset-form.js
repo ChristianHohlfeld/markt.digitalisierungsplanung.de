@@ -1,10 +1,19 @@
 export const CATEGORIES = [
-  { id: "basic", label: "Basics" },
+  { id: "basic", label: "Basis" },
   { id: "recording", label: "Browser-Aufnahme" },
   { id: "freigabe", label: "Freigabe" },
   { id: "antrag", label: "Antrag" },
   { id: "crm", label: "CRM & Service" },
   { id: "qualitaet", label: "Qualität" }
+];
+
+export const TRIGGERS = [
+  { id: "event", label: "Ereignis" },
+  { id: "auto", label: "Automatisch" },
+  { id: "button", label: "Button" },
+  { id: "api", label: "API" },
+  { id: "change", label: "Änderung" },
+  { id: "timer", label: "Timer" }
 ];
 
 export function asciiSlug(value) {
@@ -33,6 +42,38 @@ function localId(value, fallback) {
   return id.slice(0, 80);
 }
 
+function plainObject(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function cloneObject(value) {
+  return plainObject(value) ? JSON.parse(JSON.stringify(value)) : {};
+}
+
+function valueType(value) {
+  if (Array.isArray(value)) return "list";
+  if (plainObject(value)) return "object";
+  if (typeof value === "number") return "number";
+  if (typeof value === "boolean") return "boolean";
+  return "text";
+}
+
+function dataTypes(data) {
+  return Object.fromEntries(Object.entries(data).map(([key, value]) => [key, valueType(value)]));
+}
+
+function uniqueStateKeys(steps) {
+  const used = new Set();
+  return steps.map((step, index) => {
+    const base = localId(step.key || step.title, `step${index + 1}`);
+    let key = base;
+    let suffix = 2;
+    while (used.has(key)) key = `${base}_${suffix++}`.slice(0, 80);
+    used.add(key);
+    return key;
+  });
+}
+
 export function buildPresetPackage(input = {}) {
   const name = String(input.name || "").trim();
   if (!name) {
@@ -44,21 +85,40 @@ export function buildPresetPackage(input = {}) {
   const categoryLabel = String(input.categoryLabel || "Allgemein").trim() || "Allgemein";
   const categoryId = localId(input.categoryId || categoryLabel, "allgemein");
   const steps = (Array.isArray(input.steps) ? input.steps : [])
-    .map(step => ({ title: String(step?.title || "").trim(), body: String(step?.body || "").trim() }))
+    .map(step => ({
+      key: String(step?.key || "").trim(),
+      title: String(step?.title || "").trim(),
+      body: String(step?.body || "").trim(),
+      data: cloneObject(step?.data),
+      triggerType: String(step?.triggerType || "button"),
+      triggerEvent: String(step?.triggerEvent || "").trim(),
+      condition: String(step?.condition || "").trim(),
+      set: cloneObject(step?.set),
+      decision: ["human", "stop"].includes(step?.decision) ? step.decision : "routine",
+      timerMs: Number(step?.timerMs)
+    }))
     .filter(step => step.title);
-  const used = steps.length ? steps : [{ title: name, body: description }];
+  const used = steps.length ? steps : [{ key: "", title: name, body: description, data: {}, triggerType: "button", triggerEvent: "", condition: "", set: {}, decision: "routine", timerMs: 0 }];
+  const keys = uniqueStateKeys(used);
   const states = used.map((step, index) => {
-    const key = `step${index + 1}`;
     const components = [{ id: `heading${index + 1}`, type: "heading", text: step.title }];
     if (step.body) components.push({ id: `text${index + 1}`, type: "text", text: step.body });
-    return { key, title: step.title, body: step.body, components, data: {}, dataTypes: {} };
+    return { key: keys[index], title: step.title, body: step.body, components, data: step.data, dataTypes: dataTypes(step.data) };
   });
-  const transitions = used.slice(0, -1).map((_, index) => ({
-    from: `step${index + 1}`,
-    to: `step${index + 2}`,
-    label: "Weiter",
-    triggerType: "button"
-  }));
+  const transitions = used.slice(0, -1).map((step, index) => {
+    const triggerType = TRIGGERS.some(item => item.id === step.triggerType) ? step.triggerType : "button";
+    return {
+      from: keys[index],
+      to: keys[index + 1],
+      label: "Weiter",
+      triggerType,
+      ...(triggerType === "event" && step.triggerEvent ? { triggerEvent: step.triggerEvent } : {}),
+      ...(step.condition ? { condition: step.condition } : {}),
+      ...(Object.keys(step.set).length ? { set: step.set } : {}),
+      ...(step.decision !== "routine" ? { decision: step.decision } : {}),
+      ...(triggerType === "timer" && Number.isFinite(step.timerMs) && step.timerMs >= 0 ? { timerMs: step.timerMs } : {})
+    };
+  });
   return {
     schema: "preset-package/1",
     id: packageIdFromName(name),
@@ -109,7 +169,7 @@ export function coercePackage(raw, defaults = {}) {
       categoryId: value.categoryId || defaults.categoryId,
       categoryLabel: defaults.categoryLabel,
       publisher: defaults.publisher,
-      steps: value.states.map(state => ({ title: state.title || state.key || "Schritt", body: state.body || "" }))
+      steps: value.states.map(state => ({ key: state.id || state.key, title: state.title || state.key || "Schritt", body: state.body || "", data: state.data || {} }))
     });
   }
   const error = new Error("not_package");
