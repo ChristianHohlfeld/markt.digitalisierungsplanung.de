@@ -26,14 +26,19 @@ async function json(url, options) {
 function applySession() {
   const identity = $("#accountIdentity");
   const logout = $("#accountLogout");
+  const accountNav = document.querySelector("[data-account-nav]");
   if (me.authenticated) {
     identity.textContent = me.email || "Konto";
     identity.href = EDITOR;
+    identity.setAttribute("aria-label", "Konto " + (me.email || "Konto"));
     if (logout) logout.hidden = false;
+    if (accountNav) { accountNav.dataset.accountState = "authenticated"; accountNav.setAttribute("aria-busy", "false"); }
   } else {
     identity.textContent = "Anmelden";
     identity.href = loginUrl();
+    identity.setAttribute("aria-label", "Anmelden");
     if (logout) logout.hidden = true;
+    if (accountNav) { accountNav.dataset.accountState = "anonymous"; accountNav.setAttribute("aria-busy", "false"); }
   }
 }
 

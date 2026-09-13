@@ -20,7 +20,10 @@ test("market is a consumer catalog in landing styles, not a developer registry",
   assert.match(html, /accounts\.digitalisierungsplanung\.de\/admin/);
   assert.match(html, /Abmelden/);
   assert.match(html, /login\.html\?mode=login&amp;next=/);
-  assert.match(html, /id="accountIdentity"[^>]*>Anmelden<\/a>/);
+  assert.match(html, /id="accountIdentity"[^>]*>Konto<\/a>/);
+  assert.match(html, /class="nav-link account-identity"/);
+  assert.match(html, /data-account-primary/);
+  assert.match(html, /Editor öffnen/);
   assert.doesNotMatch(html, /Preset Registry/);
   assert.doesNotMatch(html, /ENTWICKLER/);
   assert.doesNotMatch(html, /Manifest abrufen/);

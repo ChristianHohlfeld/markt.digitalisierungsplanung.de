@@ -35,14 +35,19 @@ function applySession() {
   const add = $("#addPresetButton");
   const adminLink = $("#adminNavLink");
   const licenses = $("#licensesNavLink");
+  const accountNav = document.querySelector("[data-account-nav]");
   if (me.authenticated) {
     identity.textContent = me.email || "Konto";
     identity.href = EDITOR;
+    identity.setAttribute("aria-label", "Konto " + (me.email || "Konto"));
     if (logout) logout.hidden = false;
+    if (accountNav) { accountNav.dataset.accountState = "authenticated"; accountNav.setAttribute("aria-busy", "false"); }
   } else {
     identity.textContent = "Anmelden";
     identity.href = loginUrl();
+    identity.setAttribute("aria-label", "Anmelden");
     if (logout) logout.hidden = true;
+    if (accountNav) { accountNav.dataset.accountState = "anonymous"; accountNav.setAttribute("aria-busy", "false"); }
   }
   if (add) add.hidden = me.isAdmin !== true;
   if (adminLink) adminLink.hidden = me.isAdmin !== true;

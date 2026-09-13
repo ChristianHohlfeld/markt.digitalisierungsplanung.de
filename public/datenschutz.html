@@ -28,7 +28,10 @@
         <li><a class="nav-link" href="https://digitalisierungsplanung.de/datenschutz.html">Vollständige Erklärung</a></li>
       </ul>
     </nav>
-    <div class="account-nav" data-dp-theme-mount>
+    <div class="account-nav" data-account-nav data-account-state="pending" aria-busy="true" data-dp-theme-mount>
+      <a class="nav-link account-identity" id="accountIdentity" data-account-identity href="https://digitalisierungsplanung.de/login.html?mode=login&amp;next=https%3A%2F%2Fmarkt.digitalisierungsplanung.de%2Fdatenschutz.html">Konto</a>
+      <a class="btn-primary header-primary" id="accountPrimary" data-account-primary href="https://digitalisierungsplanung.de/login.html?next=https%3A%2F%2Faccounts.digitalisierungsplanung.de%2Fstate.html">Editor öffnen</a>
+      <button class="btn-ghost" id="accountLogout" data-account-logout type="button" hidden>Abmelden</button>
       <button class="dp-theme-toggle" data-dp-theme-toggle type="button" aria-label="Farbschema wechseln"></button>
     </div>
   </div>
@@ -47,4 +50,52 @@
 </main>
 <footer class="site-footer"><div class="container footer-row"><span>© 2026 digitalisierungsplanung.de</span><div class="footer-links"><a href="/">Markt</a><a href="https://aktuell.digitalisierungsplanung.de/">Aktuell</a><a href="https://digitalisierungsplanung.de/preise.html">Preise</a><a href="https://digitalisierungsplanung.de/agb.html">AGB</a><a href="https://digitalisierungsplanung.de/datenschutz.html">Datenschutz</a><a href="https://digitalisierungsplanung.de/impressum.html">Impressum</a><a href="https://digitalisierungsplanung.de/support.html">Support</a></div></div></footer>
 </body>
+
+<script>
+(() => {
+  "use strict";
+  const API = "https://accounts.digitalisierungsplanung.de";
+  const editorUrl = API + "/state.html";
+  const rootLogin = "https://digitalisierungsplanung.de/login.html";
+  const identity = document.querySelector("[data-account-identity]");
+  const primary = document.querySelector("[data-account-primary]");
+  const logout = document.querySelector("[data-account-logout]");
+  const accountNav = document.querySelector("[data-account-nav]");
+  if (!accountNav || !identity || !primary || !logout) return;
+  function settled(state) {
+    accountNav.dataset.accountState = state;
+    accountNav.setAttribute("aria-busy", "false");
+  }
+  function anonymous() {
+    const here = location.href;
+    identity.textContent = "Anmelden";
+    identity.href = rootLogin + "?mode=login&next=" + encodeURIComponent(here);
+    identity.setAttribute("aria-label", "Anmelden");
+    primary.textContent = "Editor öffnen";
+    primary.href = rootLogin + "?next=" + encodeURIComponent(editorUrl);
+    logout.hidden = true;
+    settled("anonymous");
+  }
+  function signedIn(me) {
+    const label = String(me?.email || me?.displayName || me?.name || "Konto").trim();
+    identity.textContent = label;
+    identity.href = rootLogin;
+    identity.setAttribute("aria-label", "Konto " + label);
+    logout.hidden = false;
+    primary.textContent = "Editor öffnen";
+    primary.href = editorUrl;
+    settled("authenticated");
+  }
+  logout.addEventListener("click", async () => {
+    logout.disabled = true;
+    try { await fetch(API + "/logout", { method: "POST", credentials: "include", cache: "no-store" }); } catch (_) {}
+    anonymous();
+    logout.disabled = false;
+  });
+  fetch(API + "/api/license/me", { credentials: "include", cache: "no-store" })
+    .then(r => r.ok ? r.json() : null)
+    .then(me => { if (me && me.authenticated !== false && (me.email || me.displayName)) signedIn(me); else anonymous(); })
+    .catch(() => anonymous());
+})();
+</script>
 </html>
