@@ -34,6 +34,7 @@ function applySession() {
   const logout = $("#accountLogout");
   const add = $("#addPresetButton");
   const adminLink = $("#adminNavLink");
+  const licenses = $("#licensesNavLink");
   if (me.authenticated) {
     identity.textContent = me.email || "Konto";
     identity.href = EDITOR;
@@ -45,6 +46,7 @@ function applySession() {
   }
   if (add) add.hidden = me.isAdmin !== true;
   if (adminLink) adminLink.hidden = me.isAdmin !== true;
+  if (licenses) licenses.hidden = me.isAdmin !== true;
 }
 
 async function loadSession() {

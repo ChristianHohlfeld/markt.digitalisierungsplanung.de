@@ -16,6 +16,8 @@ test("market is a consumer catalog in landing styles, not a developer registry",
   assert.match(html, /Im Editor verwenden/);
   assert.match(html, /href="\/admin"/);
   assert.match(html, /Presets anlegen/);
+  assert.match(html, /id="licensesNavLink"/);
+  assert.match(html, /accounts\.digitalisierungsplanung\.de\/admin/);
   assert.match(html, /Abmelden/);
   assert.match(html, /login\.html\?mode=login&amp;next=/);
   assert.match(html, /id="accountIdentity"[^>]*>Anmelden<\/a>/);
@@ -33,6 +35,7 @@ test("market is a consumer catalog in landing styles, not a developer registry",
   assert.match(app, /credentials:\s*"same-origin"/);
   assert.match(app, /mode=login/);
   assert.match(app, /addPresetButton/);
+  assert.match(app, /licensesNavLink/);
   assert.match(app, /isAdmin/);
   assert.match(app, /Bitte anmelden/);
   assert.doesNotMatch(app, /\/api\/license\/me/);
