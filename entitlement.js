@@ -25,6 +25,7 @@ export function planLabel(value) {
 export function viewerPlan(me) {
   if (!me || me.authenticated !== true) return null;
   if (me.isAdmin) return "enterprise";
+  if (me.expired === true) return null;
   // A trial must expose the complete product so the full Enterprise scope can be tested.
   if (me.package === "trial") return "enterprise";
   if (me.package === "licensed") return "enterprise";

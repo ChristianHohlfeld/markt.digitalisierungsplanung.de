@@ -42,14 +42,14 @@ test("form fields compile to a canonical preset-package/1 graph", () => {
     decision: "human"
   });
   assert.equal(preset.transitions[1].triggerType, "auto");
-  assert.equal(Object.hasOwn(preset.transitions[1], "decision"), false, "routine remains the implicit contract default");
+  assert.equal(preset.transitions[1].decision, "routine", "new transitions classify routine explicitly");
   assert.equal(pkg.contributes.categories[0].id, "antrag");
 });
 
 test("duplicate state names are made local-key unique without changing FSM semantics", () => {
   const pkg = buildPresetPackage({ name: "Demo", steps: [{ title: "Prüfen" }, { title: "Prüfen" }] });
   assert.deepEqual(pkg.contributes.presets[0].states.map(state => state.key), ["prufen", "prufen_2"]);
-  assert.deepEqual(pkg.contributes.presets[0].transitions[0], { from: "prufen", to: "prufen_2", label: "Weiter", triggerType: "button" });
+  assert.deepEqual(pkg.contributes.presets[0].transitions[0], { from: "prufen", to: "prufen_2", label: "Weiter", triggerType: "button", decision: "routine" });
 });
 
 test("package ids stay in the contract pattern", () => {

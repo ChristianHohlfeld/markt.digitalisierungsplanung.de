@@ -115,7 +115,7 @@ export function buildPresetPackage(input = {}) {
       ...(triggerType === "event" && step.triggerEvent ? { triggerEvent: step.triggerEvent } : {}),
       ...(step.condition ? { condition: step.condition } : {}),
       ...(Object.keys(step.set).length ? { set: step.set } : {}),
-      ...(step.decision !== "routine" ? { decision: step.decision } : {}),
+      decision: step.decision,
       ...(triggerType === "timer" && Number.isFinite(step.timerMs) && step.timerMs >= 0 ? { timerMs: step.timerMs } : {})
     };
   });

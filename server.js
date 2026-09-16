@@ -72,7 +72,7 @@ async function accountSession(req, fetcher=globalThis.fetch){
     const setCookie=forwardedSetCookie(response);
     if(!response.ok)return {authenticated:false,isAdmin:false,setCookie};
     const body=await response.json();
-    return {authenticated:body.authenticated===true,isAdmin:body.isAdmin===true,email:body.email||"",package:body.package||null,plan:body.plan||null,setCookie};
+    return {authenticated:body.authenticated===true,isAdmin:body.isAdmin===true,email:body.email||"",package:body.package||null,plan:body.plan||null,expired:body.expired!==false,setCookie};
   }catch{return {authenticated:false,isAdmin:false,setCookie:[]};}
 }
 async function viewerGate(req,res){
