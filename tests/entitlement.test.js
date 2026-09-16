@@ -27,3 +27,9 @@ test("viewer plan follows booked package and unauthenticated users get no entitl
   assert.equal(viewerPlan({ authenticated: false }), null);
   assert.equal(planAllows(null, "trial"), false);
 });
+
+test('expired accounts cannot download any paid package', () => {
+  for (const pkg of ['trial', 'licensed', 'subscription']) {
+    assert.equal(viewerPlan({authenticated:true, package:pkg, plan:'enterprise', expired:true}), null);
+  }
+});
