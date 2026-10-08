@@ -1,0 +1,23 @@
+# Markt · digitalisierungsplanung.de
+
+> Preset-Marktplatz für digitalisierungsplanung.de: geprüfte Prozessbausteine (Abläufe mit Freigaben) für Wohnungsunternehmen entdecken, einzeln kaufen oder im Paket nutzen und direkt im Editor übernehmen.
+
+Presets sind kanonische Zustand-Bausteine (`state-blueprint-definition`). Angemeldete Accounts sehen im Editor unter „Markt“, was ihnen gehört. Prozessmodelle selbst bauen AI-Agenten über den Free MCP des Produkts, nicht auf diesem Host; dieser Host hat keinen MCP-Endpunkt.
+
+## Markt
+
+- [Katalog](https://markt.digitalisierungsplanung.de/): Alle veröffentlichten Preset-Pakete mit Preis und Zugang
+- [Katalog als JSON](https://markt.digitalisierungsplanung.de/api/catalog): Öffentliche, maschinenlesbare Katalogansicht
+- [Datenschutz](https://markt.digitalisierungsplanung.de/datenschutz): Datenschutzhinweise des Markts
+
+## Produkt und MCP
+
+- [Digitalisierungsplanung.de](https://digitalisierungsplanung.de/): Prozessplanung für Wohnungsunternehmen
+- [Product llms.txt](https://digitalisierungsplanung.de/llms.txt): Agent-Vertrag des Produkts (Ops, Regeln, MCP)
+- [Free MCP](https://accounts.digitalisierungsplanung.de/mcp/free): POST, kein Account, kein API-Schlüssel
+- [MCP descriptor](https://digitalisierungsplanung.de/.well-known/mcp.json): Maschinenlesbare MCP-Beschreibung
+
+## Optional
+
+- [Beta-Zugang](https://digitalisierungsplanung.de/preise.html): Persönlicher Zugang mit Editor, Recorder und Replay
+- [Digitalisierungsplanung Aktuell](https://aktuell.digitalisierungsplanung.de/): Redaktion zu KI, Prozessen und Wohnungswirtschaft

@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { CanonicalContract } from "./contract.js";
 import { Registry } from "./registry.js";
 import { accessFor, canUse, normalizePlan, planAllows, planLabel, viewerPlan } from "./entitlement.js";
+import { featuredCardHtml } from "./public/storefront-view.js";
 
 const root = fileURLToPath(new URL(".", import.meta.url));
 const publicDir = resolve(root, "public");
@@ -138,8 +139,12 @@ function rateOk(req,res){const ip=clientIp(req),now=Date.now();if(requests.size>
 async function bodyJson(req,res){let size=0,chunks=[];for await(const chunk of req){size+=chunk.length;if(size>524288){send(res,413,{error:"payload_too_large"});return null;}chunks.push(chunk);}try{return JSON.parse(Buffer.concat(chunks).toString("utf8")||"null");}catch{send(res,400,{error:"invalid_json"});return null;}}
 function contractReady(res){if(contract.info().ready)return true;send(res,503,{error:"canonical_contract_unavailable",contract:contract.info()});return false;}
 async function canonicalValid(manifest,res,{invalidStatus=422}={}){const checked=await contract.validateCanonical(manifest);if(checked.ok)return true;if(checked.unavailable){send(res,503,{error:"canonical_validator_unavailable",details:checked.errors});return false;}send(res,invalidStatus,{error:"invalid_package",details:checked.errors});return false;}
-const mime={".html":"text/html; charset=utf-8",".css":"text/css; charset=utf-8",".js":"text/javascript; charset=utf-8",".json":"application/json; charset=utf-8",".ico":"image/x-icon"};
-async function staticFile(pathname,res){let rel;try{rel=pathname==="/"?"index.html":pathname==="/admin"||pathname==="/admin/"?"admin.html":pathname==="/datenschutz"||pathname==="/datenschutz/"?"datenschutz.html":decodeURIComponent(pathname).replace(/^\/+/,"");}catch{return false;}const path=resolve(publicDir,rel);if(path!==publicDir&&!path.startsWith(publicDir+sep))return false;try{if(!(await stat(path)).isFile())return false;const data=await readFile(path);res.writeHead(200,headers({"content-type":mime[extname(path)]||"application/octet-stream","content-length":data.length,"cache-control":"no-store"}));res.end(data);return true;}catch{return false;}}
+const mime={".html":"text/html; charset=utf-8",".txt":"text/plain; charset=utf-8",".css":"text/css; charset=utf-8",".js":"text/javascript; charset=utf-8",".json":"application/json; charset=utf-8",".ico":"image/x-icon"};
+// First paint already contains the featured package (anonymous view), so the
+// storefront does not shift when /api/catalog arrives (Lighthouse CLS).
+const FEATURED_SLOT='<section class="featured-section" id="empfohlen" hidden>\n    <div class="container"><div id="featured"></div></div>';
+function withFeatured(html){try{if(!html.includes(FEATURED_SLOT))return html;const record=registry.list({sort:"newest"}).find(entry=>entry.offer?.featured===true);if(!record)return html;const item=catalogView(record,accessFor(record,viewerPlan(null),false));return html.replace(FEATURED_SLOT,`<section class="featured-section" id="empfohlen">\n    <div class="container"><div id="featured">${featuredCardHtml(item)}</div></div>`);}catch(error){console.error(error);return html;}}
+async function staticFile(pathname,res){let rel;try{rel=pathname==="/"?"index.html":pathname==="/admin"||pathname==="/admin/"?"admin.html":pathname==="/datenschutz"||pathname==="/datenschutz/"?"datenschutz.html":decodeURIComponent(pathname).replace(/^\/+/,"");}catch{return false;}const path=resolve(publicDir,rel);if(path!==publicDir&&!path.startsWith(publicDir+sep))return false;try{if(!(await stat(path)).isFile())return false;const data=rel==="index.html"?Buffer.from(withFeatured(await readFile(path,"utf8")),"utf8"):await readFile(path);res.writeHead(200,headers({"content-type":mime[extname(path)]||"application/octet-stream","content-length":data.length,"cache-control":"no-store"}));res.end(data);return true;}catch{return false;}}
 
 // One-time purchase via Stripe Checkout (net prices, Stripe Tax, invoice for
 // B2B). The purchase is recorded when the buyer returns and the server has
