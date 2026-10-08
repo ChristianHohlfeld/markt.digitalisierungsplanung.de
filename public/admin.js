@@ -68,11 +68,74 @@ async function loadList() {
     </select></label>
     <span class="chip">${escapeHtml(item.status === "published" ? "Live" : item.status === "pending" ? "Wartend" : "Abgelehnt")}</span>
     <div class="admin-row-actions">
+      <button class="btn-ghost" type="button" data-toggle-offer aria-expanded="false">Angebot</button>
       ${item.status === "published" ? "" : `<button class="btn-primary" type="button" data-publish>Freigeben</button>`}
       ${item.status === "published" ? `<button class="btn-secondary" type="button" data-hide>Zurückziehen</button>` : ""}
       <button class="btn-ghost" type="button" data-remove>Löschen</button>
     </div>
+    ${offerEditor(item)}
   </article>`).join("");
+}
+
+// Verkauf: enthalten ab Paket oder zusätzlich einzeln kaufbar (Preis netto).
+function offerEditor(item) {
+  const offer = item.offer || {};
+  const euros = offer.priceCents ? (offer.priceCents / 100).toFixed(2).replace(".", ",") : "";
+  return `<form class="offer-editor" data-offer hidden>
+    <label><span>Verkauf</span><select name="kind"><option value="included"${offer.kind !== "purchase" ? " selected" : ""}>Nur im Paket</option><option value="purchase"${offer.kind === "purchase" ? " selected" : ""}>Auch einzeln kaufbar</option></select></label>
+    <label><span>Preis netto (EUR)</span><input name="price" inputmode="decimal" value="${escapeHtml(euros)}" placeholder="490,00"></label>
+    <label class="offer-wide"><span>Kurzversprechen</span><input name="tagline" maxlength="200" value="${escapeHtml(offer.tagline || "")}"></label>
+    <label class="offer-wide"><span>Vorteile (eine Zeile je Punkt)</span><textarea name="highlights" rows="4">${escapeHtml((offer.highlights || []).join("\n"))}</textarea></label>
+    <label class="offer-check"><input type="checkbox" name="featured"${offer.featured ? " checked" : ""}> Im Markt hervorheben</label>
+    <div class="offer-actions"><button class="btn-primary" type="submit">Angebot speichern</button></div>
+    <div class="offer-grant offer-wide">
+      <label><span>Auf Rechnung freischalten (E-Mail des Kontos)</span><input name="grantEmail" type="email" placeholder="einkauf@firma.de"></label>
+      <label><span>Rechnungsnr.</span><input name="grantReference" placeholder="RE-2026-0042"></label>
+      <button class="btn-secondary" type="button" data-grant>Freischalten</button>
+    </div>
+    <span class="hint offer-status" data-offer-status></span>
+  </form>`;
+}
+
+function readOffer(form) {
+  const data = new FormData(form);
+  const price = String(data.get("price") || "").trim().replace(/\./g, "").replace(",", ".");
+  return {
+    kind: data.get("kind") === "purchase" ? "purchase" : "included",
+    priceCents: price ? Math.round(Number(price) * 100) : 0,
+    currency: "EUR",
+    tagline: String(data.get("tagline") || "").trim(),
+    highlights: String(data.get("highlights") || "").split("\n").map(line => line.trim()).filter(Boolean),
+    featured: data.get("featured") === "on"
+  };
+}
+
+$("#list").addEventListener("submit", async event => {
+  const form = event.target.closest("[data-offer]");
+  const row = event.target.closest("[data-id]");
+  if (!form || !row) return;
+  event.preventDefault();
+  const offer = readOffer(form);
+  const status = form.querySelector("[data-offer-status]");
+  if (offer.kind === "purchase" && !(offer.priceCents > 0)) { status.textContent = "Bitte einen Preis angeben."; return; }
+  try {
+    await json(`/api/admin/packages/${encodeURIComponent(row.dataset.id)}/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ offer }) });
+    status.textContent = "Angebot gespeichert.";
+  } catch (error) { status.textContent = error.body?.error || "Speichern fehlgeschlagen."; }
+});
+
+async function grantPurchase(row) {
+  const form = row.querySelector("[data-offer]");
+  const status = form.querySelector("[data-offer-status]");
+  const email = String(form.elements.grantEmail.value || "").trim();
+  const reference = String(form.elements.grantReference.value || "").trim();
+  if (!email) { status.textContent = "Bitte die E-Mail des Kontos angeben."; return; }
+  try {
+    await json("/api/admin/purchases", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email, packageId: row.dataset.id, reference: reference ? `invoice:${reference}` : undefined }) });
+    status.textContent = `${email} ist freigeschaltet.`;
+    form.elements.grantEmail.value = "";
+    form.elements.grantReference.value = "";
+  } catch (error) { status.textContent = error.body?.error === "invalid_email" ? "E-Mail ungültig." : "Freischalten fehlgeschlagen."; }
 }
 
 async function patch(id, body) {
@@ -92,6 +155,14 @@ $("#list").addEventListener("click", async event => {
   const row = event.target.closest("[data-id]");
   if (!row) return;
   try {
+    const toggle = event.target.closest("[data-toggle-offer]");
+    if (toggle) {
+      const form = row.querySelector("[data-offer]");
+      form.hidden = !form.hidden;
+      toggle.setAttribute("aria-expanded", String(!form.hidden));
+      return;
+    }
+    if (event.target.closest("[data-grant]")) { await grantPurchase(row); return; }
     if (event.target.closest("[data-publish]")) await patch(row.dataset.id, { status: "published" });
     else if (event.target.closest("[data-hide]")) await patch(row.dataset.id, { status: "pending" });
     else if (event.target.closest("[data-remove]")) {

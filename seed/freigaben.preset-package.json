@@ -1,0 +1,915 @@
+{
+  "schema": "preset-package/1",
+  "id": "digitalisierungsplanung.freigaben",
+  "version": "1.0.0",
+  "name": "Freigaben & Genehmigungen",
+  "description": "Verbindliche Freigabeprozesse für Budget, Einkauf, Rechnungen, Investitionen, Verträge und Reisekosten – mit Vier-Augen-Prinzip, Mehrfachfreigabe und signiertem PDF-Nachweis.",
+  "publisher": "digitalisierungsplanung.de",
+  "engine": {
+    "flow": "1",
+    "project": "2"
+  },
+  "contributes": {
+    "categories": [
+      {
+        "id": "freigaben",
+        "label": "Freigaben & Genehmigungen"
+      }
+    ],
+    "presets": [
+      {
+        "id": "budgetfreigabe",
+        "categoryId": "freigaben",
+        "kind": "process",
+        "exitKey": "freigegeben",
+        "title": "Budgetfreigabe mit Betragsgrenze",
+        "description": "Antrag mit Betrag, Kostenstelle und Zweck. Bis 5.000 € gibt die Budgetverantwortung frei, darüber zusätzlich zwei Personen der Geschäftsführung. Vier-Augen-Prinzip, signierter PDF-Nachweis.",
+        "states": [
+          {
+            "key": "antrag",
+            "title": "Budgetantrag",
+            "body": "Wer etwas ausgeben möchte, erfasst Betrag, Kostenstelle und Zweck.",
+            "components": [
+              {
+                "id": "h",
+                "type": "heading",
+                "text": "Budgetantrag"
+              },
+              {
+                "id": "betrag",
+                "type": "daisy",
+                "variant": "input",
+                "text": "Betrag (EUR)",
+                "dataPath": "process.betrag",
+                "dataRole": "field",
+                "dataLabel": "Betrag (EUR)"
+              },
+              {
+                "id": "kostenstelle",
+                "type": "daisy",
+                "variant": "input",
+                "text": "Kostenstelle",
+                "dataPath": "process.kostenstelle",
+                "dataRole": "field",
+                "dataLabel": "Kostenstelle"
+              },
+              {
+                "id": "zweck",
+                "type": "daisy",
+                "variant": "input",
+                "text": "Zweck / Begründung",
+                "dataPath": "process.zweck",
+                "dataRole": "field",
+                "dataLabel": "Zweck / Begründung"
+              }
+            ],
+            "data": {},
+            "dataTypes": {}
+          },
+          {
+            "key": "pruefung",
+            "title": "Prüfung Budgetverantwortung",
+            "body": "Die budgetverantwortliche Person prüft Betrag und Zweck.",
+            "components": [
+              {
+                "id": "h",
+                "type": "heading",
+                "text": "Prüfung"
+              },
+              {
+                "id": "t",
+                "type": "text",
+                "text": "Bitte die Angaben prüfen. Die genauen Werte (z. B. Betrag) stehen in der Freigabe und werden mit ihr signiert."
+              },
+              {
+                "id": "n",
+                "type": "note",
+                "text": "Bis 5.000 € genügt diese Freigabe. Darüber entscheidet zusätzlich die Geschäftsführung."
+              }
+            ],
+            "data": {},
+            "dataTypes": {}
+          },
+          {
+            "key": "geschaeftsfuehrung",
+            "title": "Freigabe Geschäftsführung",
+            "body": "Ab 5.000 € geben zwei Personen der Geschäftsführung frei.",
+            "components": [
+              {
+                "id": "h",
+                "type": "heading",
+                "text": "Geschäftsführung"
+              },
+              {
+                "id": "t",
+                "type": "text",
+                "text": "Bitte die Angaben prüfen. Die genauen Werte (z. B. Betrag) stehen in der Freigabe und werden mit ihr signiert."
+              }
+            ],
+            "data": {},
+            "dataTypes": {}
+          },
+          {
+            "key": "freigegeben",
+            "title": "Budget freigegeben",
+            "body": "Das Budget ist verbindlich freigegeben. Der signierte Nachweis steht als PDF bereit.",
+            "components": [
+              {
+                "id": "h",
+                "type": "heading",
+                "text": "Budget freigegeben"
+              },
+              {
+                "id": "n",
+                "type": "note",
+                "text": "Freigabenachweis (PDF) im Ablauf unter „Abgeschlossene Transaktionen“."
+              }
+            ],
+            "data": {},
+            "dataTypes": {}
+          }
+        ],
+        "transitions": [
+          {
+            "from": "antrag",
+            "to": "pruefung",
+            "label": "Zur Freigabe einreichen",
+            "decision": "routine",
+            "triggerType": "button",
+            "condition": "process.betrag.value > 0 && process.kostenstelle.value"
+          },
+          {
+            "from": "pruefung",
+            "to": "freigegeben",
+            "label": "Freigeben (bis 5.000 €)",
+            "decision": "human",
+            "triggerType": "button",
+            "condition": "process.betrag.value <= 5000",
+            "approval": {
+              "method": "qr",
+              "excludeInitiator": true
+            }
+          },
+          {
+            "from": "pruefung",
+            "to": "geschaeftsfuehrung",
+            "label": "Befürworten (über 5.000 €)",
+            "decision": "human",
+            "triggerType": "button",
+            "condition": "process.betrag.value > 5000",
+            "approval": {
+              "method": "qr",
+              "excludeInitiator": true
+            }
+          },
+          {
+            "from": "pruefung",
+            "to": "antrag",
+            "label": "Zur Überarbeitung zurück",
+            "decision": "routine",
+            "triggerType": "button"
+          },
+          {
+            "from": "geschaeftsfuehrung",
+            "to": "freigegeben",
+            "label": "Freigeben (Geschäftsführung)",
+            "decision": "human",
+            "triggerType": "button",
+            "approval": {
+              "method": "qr",
+              "quorum": 2,
+              "excludeInitiator": true
+            }
+          },
+          {
+            "from": "geschaeftsfuehrung",
+            "to": "antrag",
+            "label": "Zur Überarbeitung zurück",
+            "decision": "routine",
+            "triggerType": "button"
+          }
+        ]
+      },
+      {
+        "id": "bestellanforderung",
+        "categoryId": "freigaben",
+        "kind": "process",
+        "exitKey": "bestellt",
+        "title": "Bestellanforderung (Einkauf)",
+        "description": "Bedarf melden, Einkauf prüft Angebot und Lieferant, Kostenstellenverantwortung gibt frei. Danach wird die Bestellung ausgelöst.",
+        "states": [
+          {
+            "key": "bedarf",
+            "title": "Bedarf melden",
+            "body": "Fachbereich beschreibt Artikel, Menge und geschätzten Betrag.",
+            "components": [
+              {
+                "id": "h",
+                "type": "heading",
+                "text": "Bestellanforderung"
+              },
+              {
+                "id": "artikel",
+                "type": "daisy",
+                "variant": "input",
+                "text": "Artikel / Leistung",
+                "dataPath": "process.artikel",
+                "dataRole": "field",
+                "dataLabel": "Artikel / Leistung"
+              },
+              {
+                "id": "menge",
+                "type": "daisy",
+                "variant": "input",
+                "text": "Menge",
+                "dataPath": "process.menge",
+                "dataRole": "field",
+                "dataLabel": "Menge"
+              },
+              {
+                "id": "betrag",
+                "type": "daisy",
+                "variant": "input",
+                "text": "Geschätzter Betrag (EUR)",
+                "dataPath": "process.betrag",
+                "dataRole": "field",
+                "dataLabel": "Geschätzter Betrag (EUR)"
+              },
+              {
+                "id": "kostenstelle",
+                "type": "daisy",
+                "variant": "input",
+                "text": "Kostenstelle",
+                "dataPath": "process.kostenstelle",
+                "dataRole": "field",
+                "dataLabel": "Kostenstelle"
+              }
+            ],
+            "data": {},
+            "dataTypes": {}
+          },
+          {
+            "key": "einkauf",
+            "title": "Prüfung Einkauf",
+            "body": "Einkauf prüft Angebot, Lieferant und Konditionen.",
+            "components": [
+              {
+                "id": "h",
+                "type": "heading",
+                "text": "Einkauf"
+              },
+              {
+                "id": "lieferant",
+                "type": "daisy",
+                "variant": "input",
+                "text": "Lieferant",
+                "dataPath": "process.lieferant",
+                "dataRole": "field",
+                "dataLabel": "Lieferant"
+              },
+              {
+                "id": "angebot",
+                "type": "daisy",
+                "variant": "input",
+                "text": "Angebotsnummer",
+                "dataPath": "process.angebotsnummer",
+                "dataRole": "field",
+                "dataLabel": "Angebotsnummer"
+              }
+            ],
+            "data": {},
+            "dataTypes": {}
+          },
+          {
+            "key": "freigabe",
+            "title": "Freigabe Kostenstelle",
+            "body": "Die Kostenstellenverantwortung gibt die Bestellung frei.",
+            "components": [
+              {
+                "id": "h",
+                "type": "heading",
+                "text": "Freigabe"
+              },
+              {
+                "id": "t",
+                "type": "text",
+                "text": "Bitte die Angaben prüfen. Die genauen Werte (z. B. Betrag) stehen in der Freigabe und werden mit ihr signiert."
+              }
+            ],
+            "data": {},
+            "dataTypes": {}
+          },
+          {
+            "key": "bestellt",
+            "title": "Bestellung ausgelöst",
+            "body": "Die Bestellung ist freigegeben und kann ausgelöst werden.",
+            "components": [
+              {
+                "id": "h",
+                "type": "heading",
+                "text": "Bestellung ausgelöst"
+              }
+            ],
+            "data": {},
+            "dataTypes": {}
+          }
+        ],
+        "transitions": [
+          {
+            "from": "bedarf",
+            "to": "einkauf",
+            "label": "An Einkauf übergeben",
+            "decision": "routine",
+            "triggerType": "button",
+            "condition": "process.artikel.value && process.betrag.value > 0"
+          },
+          {
+            "from": "einkauf",
+            "to": "freigabe",
+            "label": "Angebot geprüft",
+            "decision": "routine",
+            "triggerType": "button",
+            "condition": "process.lieferant.value"
+          },
+          {
+            "from": "einkauf",
+            "to": "bedarf",
+            "label": "Rückfrage an Fachbereich",
+            "decision": "routine",
+            "triggerType": "button"
+          },
+          {
+            "from": "freigabe",
+            "to": "bestellt",
+            "label": "Bestellung freigeben",
+            "decision": "human",
+            "triggerType": "button",
+            "approval": {
+              "method": "qr",
+              "excludeInitiator": true
+            }
+          },
+          {
+            "from": "freigabe",
+            "to": "einkauf",
+            "label": "Zurück an Einkauf",
+            "decision": "routine",
+            "triggerType": "button"
+          }
+        ]
+      },
+      {
+        "id": "rechnungsfreigabe",
+        "categoryId": "freigaben",
+        "kind": "process",
+        "exitKey": "zahlung",
+        "title": "Rechnungsfreigabe (sachlich & rechnerisch)",
+        "description": "Eingangsrechnung erfassen, sachlich und rechnerisch prüfen lassen – zwei verschiedene Personen (Vier-Augen-Prinzip) – und zur Zahlung freigeben.",
+        "states": [
+          {
+            "key": "eingang",
+            "title": "Rechnung erfassen",
+            "body": "Rechnungsdaten aus dem Beleg übernehmen.",
+            "components": [
+              {
+                "id": "h",
+                "type": "heading",
+                "text": "Eingangsrechnung"
+              },
+              {
+                "id": "lieferant",
+                "type": "daisy",
+                "variant": "input",
+                "text": "Lieferant",
+                "dataPath": "process.lieferant",
+                "dataRole": "field",
+                "dataLabel": "Lieferant"
+              },
+              {
+                "id": "rechnung",
+                "type": "daisy",
+                "variant": "input",
+                "text": "Rechnungsnummer",
+                "dataPath": "process.rechnungsnummer",
+                "dataRole": "field",
+                "dataLabel": "Rechnungsnummer"
+              },
+              {
+                "id": "betrag",
+                "type": "daisy",
+                "variant": "input",
+                "text": "Rechnungsbetrag brutto (EUR)",
+                "dataPath": "process.betrag",
+                "dataRole": "field",
+                "dataLabel": "Rechnungsbetrag brutto (EUR)"
+              },
+              {
+                "id": "faellig",
+                "type": "daisy",
+                "variant": "input",
+                "text": "Fällig am",
+                "dataPath": "process.faelligkeit",
+                "dataRole": "field",
+                "dataLabel": "Fällig am"
+              }
+            ],
+            "data": {},
+            "dataTypes": {}
+          },
+          {
+            "key": "pruefung",
+            "title": "Sachliche & rechnerische Prüfung",
+            "body": "Leistung erhalten? Betrag korrekt? Zwei Personen bestätigen.",
+            "components": [
+              {
+                "id": "h",
+                "type": "heading",
+                "text": "Prüfung"
+              },
+              {
+                "id": "t",
+                "type": "text",
+                "text": "Bitte die Angaben prüfen. Die genauen Werte (z. B. Betrag) stehen in der Freigabe und werden mit ihr signiert."
+              }
+            ],
+            "data": {},
+            "dataTypes": {}
+          },
+          {
+            "key": "zahlung",
+            "title": "Zur Zahlung freigegeben",
+            "body": "Die Rechnung ist geprüft und zur Zahlung freigegeben.",
+            "components": [
+              {
+                "id": "h",
+                "type": "heading",
+                "text": "Zur Zahlung freigegeben"
+              }
+            ],
+            "data": {},
+            "dataTypes": {}
+          }
+        ],
+        "transitions": [
+          {
+            "from": "eingang",
+            "to": "pruefung",
+            "label": "Zur Prüfung",
+            "decision": "routine",
+            "triggerType": "button",
+            "condition": "process.rechnungsnummer.value && process.betrag.value > 0"
+          },
+          {
+            "from": "pruefung",
+            "to": "zahlung",
+            "label": "Sachlich und rechnerisch richtig",
+            "decision": "human",
+            "triggerType": "button",
+            "approval": {
+              "method": "qr",
+              "quorum": 2,
+              "excludeInitiator": true
+            }
+          },
+          {
+            "from": "pruefung",
+            "to": "eingang",
+            "label": "Beanstanden / korrigieren",
+            "decision": "routine",
+            "triggerType": "button"
+          }
+        ]
+      },
+      {
+        "id": "investitionsantrag",
+        "categoryId": "freigaben",
+        "kind": "process",
+        "exitKey": "genehmigt",
+        "title": "Investitionsantrag (CapEx)",
+        "description": "Investition mit Betrag, Amortisation und Begründung. Controlling prüft die Wirtschaftlichkeit, danach entscheidet die Geschäftsführung gemeinsam.",
+        "states": [
+          {
+            "key": "antrag",
+            "title": "Investitionsantrag",
+            "body": "Investition beschreiben und begründen.",
+            "components": [
+              {
+                "id": "h",
+                "type": "heading",
+                "text": "Investitionsantrag"
+              },
+              {
+                "id": "titel",
+                "type": "daisy",
+                "variant": "input",
+                "text": "Investition",
+                "dataPath": "process.investition",
+                "dataRole": "field",
+                "dataLabel": "Investition"
+              },
+              {
+                "id": "betrag",
+                "type": "daisy",
+                "variant": "input",
+                "text": "Investitionsbetrag (EUR)",
+                "dataPath": "process.betrag",
+                "dataRole": "field",
+                "dataLabel": "Investitionsbetrag (EUR)"
+              },
+              {
+                "id": "amortisation",
+                "type": "daisy",
+                "variant": "input",
+                "text": "Amortisation (Monate)",
+                "dataPath": "process.amortisation",
+                "dataRole": "field",
+                "dataLabel": "Amortisation (Monate)"
+              },
+              {
+                "id": "begruendung",
+                "type": "daisy",
+                "variant": "input",
+                "text": "Begründung",
+                "dataPath": "process.begruendung",
+                "dataRole": "field",
+                "dataLabel": "Begründung"
+              }
+            ],
+            "data": {},
+            "dataTypes": {}
+          },
+          {
+            "key": "controlling",
+            "title": "Prüfung Controlling",
+            "body": "Wirtschaftlichkeit und Budgetplanung prüfen.",
+            "components": [
+              {
+                "id": "h",
+                "type": "heading",
+                "text": "Controlling"
+              },
+              {
+                "id": "t",
+                "type": "text",
+                "text": "Bitte die Angaben prüfen. Die genauen Werte (z. B. Betrag) stehen in der Freigabe und werden mit ihr signiert."
+              }
+            ],
+            "data": {},
+            "dataTypes": {}
+          },
+          {
+            "key": "gf",
+            "title": "Entscheidung Geschäftsführung",
+            "body": "Die Geschäftsführung entscheidet gemeinsam.",
+            "components": [
+              {
+                "id": "h",
+                "type": "heading",
+                "text": "Geschäftsführung"
+              },
+              {
+                "id": "t",
+                "type": "text",
+                "text": "Bitte die Angaben prüfen. Die genauen Werte (z. B. Betrag) stehen in der Freigabe und werden mit ihr signiert."
+              }
+            ],
+            "data": {},
+            "dataTypes": {}
+          },
+          {
+            "key": "genehmigt",
+            "title": "Investition genehmigt",
+            "body": "Die Investition ist genehmigt.",
+            "components": [
+              {
+                "id": "h",
+                "type": "heading",
+                "text": "Investition genehmigt"
+              }
+            ],
+            "data": {},
+            "dataTypes": {}
+          }
+        ],
+        "transitions": [
+          {
+            "from": "antrag",
+            "to": "controlling",
+            "label": "Einreichen",
+            "decision": "routine",
+            "triggerType": "button",
+            "condition": "process.investition.value && process.betrag.value > 0"
+          },
+          {
+            "from": "controlling",
+            "to": "gf",
+            "label": "Wirtschaftlich geprüft",
+            "decision": "human",
+            "triggerType": "button",
+            "approval": {
+              "method": "qr",
+              "excludeInitiator": true
+            }
+          },
+          {
+            "from": "controlling",
+            "to": "antrag",
+            "label": "Rückfrage",
+            "decision": "routine",
+            "triggerType": "button"
+          },
+          {
+            "from": "gf",
+            "to": "genehmigt",
+            "label": "Genehmigen",
+            "decision": "human",
+            "triggerType": "button",
+            "approval": {
+              "method": "qr",
+              "quorum": 2,
+              "excludeInitiator": true
+            }
+          },
+          {
+            "from": "gf",
+            "to": "antrag",
+            "label": "Zur Überarbeitung",
+            "decision": "routine",
+            "triggerType": "button"
+          }
+        ]
+      },
+      {
+        "id": "vertragsfreigabe",
+        "categoryId": "freigaben",
+        "kind": "process",
+        "exitKey": "freigegeben",
+        "title": "Vertragsfreigabe vor Unterschrift",
+        "description": "Vertragsentwurf, fachliche und rechtliche Prüfung, Freigabe durch zwei Zeichnungsberechtigte. Hinweis: gesetzlich formgebundene Verträge brauchen zusätzlich eine QES.",
+        "states": [
+          {
+            "key": "entwurf",
+            "title": "Vertragsentwurf",
+            "body": "Vertragspartner, Laufzeit und Volumen erfassen.",
+            "components": [
+              {
+                "id": "h",
+                "type": "heading",
+                "text": "Vertrag"
+              },
+              {
+                "id": "partner",
+                "type": "daisy",
+                "variant": "input",
+                "text": "Vertragspartner",
+                "dataPath": "process.vertragspartner",
+                "dataRole": "field",
+                "dataLabel": "Vertragspartner"
+              },
+              {
+                "id": "gegenstand",
+                "type": "daisy",
+                "variant": "input",
+                "text": "Gegenstand",
+                "dataPath": "process.gegenstand",
+                "dataRole": "field",
+                "dataLabel": "Gegenstand"
+              },
+              {
+                "id": "volumen",
+                "type": "daisy",
+                "variant": "input",
+                "text": "Vertragsvolumen (EUR)",
+                "dataPath": "process.volumen",
+                "dataRole": "field",
+                "dataLabel": "Vertragsvolumen (EUR)"
+              },
+              {
+                "id": "laufzeit",
+                "type": "daisy",
+                "variant": "input",
+                "text": "Laufzeit",
+                "dataPath": "process.laufzeit",
+                "dataRole": "field",
+                "dataLabel": "Laufzeit"
+              }
+            ],
+            "data": {},
+            "dataTypes": {}
+          },
+          {
+            "key": "recht",
+            "title": "Rechtliche Prüfung",
+            "body": "Rechtsabteilung oder Kanzlei prüft den Entwurf.",
+            "components": [
+              {
+                "id": "h",
+                "type": "heading",
+                "text": "Rechtliche Prüfung"
+              }
+            ],
+            "data": {},
+            "dataTypes": {}
+          },
+          {
+            "key": "zeichnung",
+            "title": "Freigabe Zeichnungsberechtigte",
+            "body": "Zwei zeichnungsberechtigte Personen geben frei.",
+            "components": [
+              {
+                "id": "h",
+                "type": "heading",
+                "text": "Zeichnungsberechtigte"
+              },
+              {
+                "id": "t",
+                "type": "text",
+                "text": "Bitte die Angaben prüfen. Die genauen Werte (z. B. Betrag) stehen in der Freigabe und werden mit ihr signiert."
+              }
+            ],
+            "data": {},
+            "dataTypes": {}
+          },
+          {
+            "key": "freigegeben",
+            "title": "Zur Unterschrift freigegeben",
+            "body": "Der Vertrag ist intern freigegeben.",
+            "components": [
+              {
+                "id": "h",
+                "type": "heading",
+                "text": "Zur Unterschrift freigegeben"
+              },
+              {
+                "id": "n",
+                "type": "note",
+                "text": "Verträge mit gesetzlicher Schriftform (§ 126 BGB) anschließend mit qualifizierter elektronischer Signatur (QES) oder handschriftlich unterzeichnen."
+              }
+            ],
+            "data": {},
+            "dataTypes": {}
+          }
+        ],
+        "transitions": [
+          {
+            "from": "entwurf",
+            "to": "recht",
+            "label": "Zur Prüfung",
+            "decision": "routine",
+            "triggerType": "button",
+            "condition": "process.vertragspartner.value && process.gegenstand.value"
+          },
+          {
+            "from": "recht",
+            "to": "zeichnung",
+            "label": "Rechtlich geprüft",
+            "decision": "human",
+            "triggerType": "button",
+            "approval": {
+              "method": "qr",
+              "excludeInitiator": true
+            }
+          },
+          {
+            "from": "recht",
+            "to": "entwurf",
+            "label": "Änderungen nötig",
+            "decision": "routine",
+            "triggerType": "button"
+          },
+          {
+            "from": "zeichnung",
+            "to": "freigegeben",
+            "label": "Freigeben",
+            "decision": "human",
+            "triggerType": "button",
+            "approval": {
+              "method": "qr",
+              "quorum": 2,
+              "excludeInitiator": true
+            }
+          },
+          {
+            "from": "zeichnung",
+            "to": "entwurf",
+            "label": "Zurück",
+            "decision": "routine",
+            "triggerType": "button"
+          }
+        ]
+      },
+      {
+        "id": "reisekosten",
+        "categoryId": "freigaben",
+        "kind": "process",
+        "exitKey": "erstattung",
+        "title": "Reisekosten & Spesen",
+        "description": "Reisekosten erfassen, Führungskraft gibt frei, Buchhaltung erstattet. Schnell, nachvollziehbar, mit Nachweis.",
+        "states": [
+          {
+            "key": "abrechnung",
+            "title": "Reisekosten erfassen",
+            "body": "Reise, Zeitraum und Betrag erfassen.",
+            "components": [
+              {
+                "id": "h",
+                "type": "heading",
+                "text": "Reisekosten"
+              },
+              {
+                "id": "anlass",
+                "type": "daisy",
+                "variant": "input",
+                "text": "Anlass / Reiseziel",
+                "dataPath": "process.anlass",
+                "dataRole": "field",
+                "dataLabel": "Anlass / Reiseziel"
+              },
+              {
+                "id": "zeitraum",
+                "type": "daisy",
+                "variant": "input",
+                "text": "Zeitraum",
+                "dataPath": "process.zeitraum",
+                "dataRole": "field",
+                "dataLabel": "Zeitraum"
+              },
+              {
+                "id": "betrag",
+                "type": "daisy",
+                "variant": "input",
+                "text": "Betrag (EUR)",
+                "dataPath": "process.betrag",
+                "dataRole": "field",
+                "dataLabel": "Betrag (EUR)"
+              }
+            ],
+            "data": {},
+            "dataTypes": {}
+          },
+          {
+            "key": "fuehrung",
+            "title": "Freigabe Führungskraft",
+            "body": "Die Führungskraft bestätigt die Reise und die Kosten.",
+            "components": [
+              {
+                "id": "h",
+                "type": "heading",
+                "text": "Freigabe"
+              },
+              {
+                "id": "t",
+                "type": "text",
+                "text": "Bitte die Angaben prüfen. Die genauen Werte (z. B. Betrag) stehen in der Freigabe und werden mit ihr signiert."
+              }
+            ],
+            "data": {},
+            "dataTypes": {}
+          },
+          {
+            "key": "erstattung",
+            "title": "Zur Erstattung freigegeben",
+            "body": "Die Buchhaltung erstattet den Betrag.",
+            "components": [
+              {
+                "id": "h",
+                "type": "heading",
+                "text": "Zur Erstattung freigegeben"
+              }
+            ],
+            "data": {},
+            "dataTypes": {}
+          }
+        ],
+        "transitions": [
+          {
+            "from": "abrechnung",
+            "to": "fuehrung",
+            "label": "Einreichen",
+            "decision": "routine",
+            "triggerType": "button",
+            "condition": "process.anlass.value && process.betrag.value > 0"
+          },
+          {
+            "from": "fuehrung",
+            "to": "erstattung",
+            "label": "Freigeben",
+            "decision": "human",
+            "triggerType": "button",
+            "approval": {
+              "method": "qr",
+              "excludeInitiator": true
+            }
+          },
+          {
+            "from": "fuehrung",
+            "to": "abrechnung",
+            "label": "Rückfrage",
+            "decision": "routine",
+            "triggerType": "button"
+          }
+        ]
+      }
+    ]
+  }
+}

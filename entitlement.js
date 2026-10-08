@@ -37,3 +37,20 @@ export function planAllows(viewer, required) {
   if (!viewer) return false;
   return planRank(viewer) >= planRank(required);
 }
+
+// Access of one viewer to one published package:
+//   included  — part of the viewer's plan (record.plan or higher)
+//   purchased — bought once by this account
+//   buyable   — can be bought (offer kind "purchase")
+//   locked    — needs a higher plan
+export function accessFor(record, viewer, purchased = false) {
+  if (!record || record.status !== "published") return "locked";
+  if (viewer && planAllows(viewer, record.plan || "trial")) return "included";
+  if (purchased) return "purchased";
+  if (record.offer?.kind === "purchase") return "buyable";
+  return "locked";
+}
+
+export function canUse(access) {
+  return access === "included" || access === "purchased";
+}

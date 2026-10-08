@@ -1,0 +1,25 @@
+{
+  "schema": "market-seed/1",
+  "note": "Canonical packages shipped with the market release. Source of truth: digitalisierungsplanung.de/presets. Admin changes to plan and offer are kept on later releases.",
+  "packages": [
+    {
+      "file": "freigaben.preset-package.json",
+      "plan": "enterprise",
+      "offer": {
+        "kind": "purchase",
+        "priceCents": 49000,
+        "currency": "EUR",
+        "tagline": "Sechs verbindliche Freigabeprozesse – sofort einsatzbereit, mit signiertem PDF-Nachweis.",
+        "highlights": [
+          "Budget, Einkauf, Rechnungen, Investitionen, Verträge, Reisekosten",
+          "Vier-Augen-Prinzip und Mehrfachfreigabe (z. B. 2 von 3)",
+          "Freigabe per QR oder SMS, gebunden an Betrag und Daten",
+          "Signierter Transaktionsnachweis als PDF für jeden Lauf",
+          "Betragsgrenzen direkt im Übergang einstellbar",
+          "Im Paket Unternehmen enthalten"
+        ],
+        "featured": true
+      }
+    }
+  ]
+}

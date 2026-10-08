@@ -44,35 +44,56 @@
   <section class="hero-section">
     <div class="container hero-grid">
       <div>
-        <div class="eyebrow">Für Digitalisierungs- und Prozessverantwortliche</div>
+        <div class="eyebrow">Für Geschäftsführung, Einkauf, Finanzen und Prozessverantwortliche</div>
         <h1>Fertige Bausteine für prüfbare Abläufe.</h1>
-        <p class="hero-subline">Entdecken Sie geprüfte Presets für typische Schritte, Entscheidungen und Aufnahmen. Ein Klick übernimmt sie in den Editor – als normale Zustände, ohne Extra-Runtime.</p>
+        <p class="hero-subline">Freigabeprozesse und Prozessbausteine, die Ihr Team sofort nutzt: einfügen, Zuständige eintragen, verbindlich laufen lassen. Jede Freigabe ist an Betrag und Daten gebunden und endet mit einem signierten PDF-Nachweis.</p>
         <div class="hero-actions">
           <a class="btn-primary" data-ga-cta="presets_entdecken" href="#katalog">Presets entdecken</a>
           <a class="btn-secondary" data-ga-cta="editor_hero" href="https://accounts.digitalisierungsplanung.de/state.html">Im Editor verwenden</a>
         </div>
+        <ul class="hero-proof" aria-label="Was jedes Freigabe-Preset mitbringt">
+          <li>Vier-Augen-Prinzip</li><li>2 von 3 Freigaben</li><li>QR oder SMS</li><li>Signierter PDF-Nachweis</li>
+        </ul>
       </div>
-      <div class="registry-card" aria-label="So funktioniert der Markt">
-        <div class="registry-head"><span>MARKT</span><b>direkt im Editor</b></div>
-        <div class="pipeline"><span>Baustein</span><i>→</i><span>übernehmen</span><i>→</i><span>prüfen</span></div>
-        <p>Jedes Preset wird zu normalen Zuständen und Übergängen. Danach löschen, ändern oder erweitern Sie es wie selbst modellierte Schritte.</p>
+      <div class="registry-card flow-card" aria-label="So läuft eine Budgetfreigabe">
+        <div class="registry-head"><span>BUDGETFREIGABE</span><b>verbindlicher Lauf</b></div>
+        <ol class="flow-steps">
+          <li><b>Antrag</b><span>Betrag 12.500 € · Kostenstelle 4711</span></li>
+          <li class="is-rule"><b>Bedingung</b><span>Betrag &gt; 5.000 € → Geschäftsführung</span></li>
+          <li class="is-human"><b>Freigabe 2 von 3</b><span>anna@firma.de ✓ · ben@firma.de ✓</span></li>
+          <li class="is-done"><b>Freigegeben</b><span>Nachweis signiert · PDF</span></li>
+        </ol>
+        <p>Gekaufte Presets erscheinen im Editor unten im Reiter <b>Markt</b> – per Doppelklick, Plus oder Drag &amp; Drop eingefügt.</p>
       </div>
     </div>
+  </section>
+
+  <section class="featured-section" id="empfohlen" hidden>
+    <div class="container"><div id="featured"></div></div>
   </section>
 
   <section class="catalog-section" id="katalog">
     <div class="container">
       <div class="catalog-head">
-        <div><div class="section-tag">Katalog</div><h2>Presets für echte Arbeitsabläufe</h2><p>Suchen Sie nach Freigabe, Aufnahme oder Formularen. Nur veröffentlichte Pakete erscheinen hier.</p></div>
+        <div><div class="section-tag">Katalog</div><h2>Presets für echte Arbeitsabläufe</h2><p id="viewerHint">Im Paket enthalten, einzeln kaufbar oder auf Rechnung bestellbar.</p></div>
         <div class="count" id="packageCount">—</div>
       </div>
       <form class="filters" id="filters" role="search">
-        <label class="search-field"><span>Suche</span><input id="query" name="q" autocomplete="off" placeholder="z. B. Freigabe, Aufnahme, Formular …"></label>
+        <label class="search-field"><span>Suche</span><input id="query" name="q" autocomplete="off" placeholder="z. B. Freigabe, Budget, Rechnung …"></label>
         <label><span>Kategorie</span><select id="category" name="category"><option value="">Alle Kategorien</option></select></label>
         <label><span>Sortierung</span><select id="sort" name="sort"><option value="newest">Neueste</option><option value="popular">Beliebt</option><option value="name">Name</option></select></label>
       </form>
       <div id="state" class="state-message" hidden></div>
       <div id="grid" class="package-grid" aria-live="polite"></div>
+    </div>
+  </section>
+
+  <section class="howto-section">
+    <div class="container howto-grid">
+      <div><span class="howto-num">1</span><h3>Auswählen</h3><p>Im Paket enthalten oder einmalig kaufen. Rechnungskauf für Unternehmen möglich.</p></div>
+      <div><span class="howto-num">2</span><h3>Einfügen</h3><p>Im Editor unten „Markt“ öffnen und das Preset auf die Fläche ziehen, doppelklicken oder mit + einfügen.</p></div>
+      <div><span class="howto-num">3</span><h3>Zuständige eintragen</h3><p>Freigebende Personen und Betragsgrenzen direkt am Übergang festlegen. Ohne Zuweisung startet kein verbindlicher Lauf.</p></div>
+      <div><span class="howto-num">4</span><h3>Verbindlich laufen lassen</h3><p>Jeder abgeschlossene Lauf (Eingang → Ausgang) erhält einen signierten Nachweis als PDF.</p></div>
     </div>
   </section>
 </main>
@@ -84,19 +105,19 @@
     <div class="section-tag" id="detailPublisher"></div>
     <h2 id="detailName"></h2>
     <p id="detailDescription" class="detail-description"></p>
-    <div class="meta-row"><span id="detailVersion"></span><span id="detailDownloads"></span><span id="detailPresetCount"></span></div>
+    <div class="meta-row"><span id="detailVersion"></span><span id="detailPresetCount"></span><span id="detailAccess"></span></div>
     <div id="detailCategories" class="chips"></div>
-    <h3>Enthaltene Schritte</h3>
+    <ul id="detailHighlights" class="highlights"></ul>
+    <h3>Enthaltene Presets</h3>
     <div id="detailPresets" class="preset-list"></div>
-    <div class="dialog-actions">
-      <a class="btn-primary" id="installButton" data-ga-cta="editor_install" href="https://accounts.digitalisierungsplanung.de/state.html">Im Editor verwenden</a>
-      <button class="btn-secondary" id="copyButton" type="button" data-ga-cta="paket_kopieren">Paket kopieren</button>
+    <div class="dialog-buy" id="detailBuy">
+      <div class="price-block"><strong id="detailPrice"></strong><small id="detailPriceNote"></small></div>
+      <div class="dialog-actions" id="detailActions"></div>
     </div>
+    <p class="hint" id="detailHint"></p>
   </article>
 </dialog>
 
-
-</div>
 <script type="module" src="/analytics.js"></script>
 <script type="module" src="/app.js"></script>
 </body>
