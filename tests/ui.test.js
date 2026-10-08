@@ -40,7 +40,7 @@ test("market is a consumer catalog in landing styles, not a developer registry",
   assert.match(app, /addPresetButton/);
   assert.match(app, /licensesNavLink/);
   assert.match(app, /isAdmin/);
-  assert.match(app, /Bitte anmelden/);
+  assert.match(app, /Anmelden zeigt/); // catalog is public; login reveals what the account owns
   assert.doesNotMatch(app, /\/api\/license\/me/);
   assert.match(app, /window\.addEventListener\("focus"/);
 });
