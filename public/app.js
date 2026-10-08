@@ -1,4 +1,5 @@
 import { trackListingOpen } from "./analytics.js";
+import { accessInfo, featuredCardHtml, formatPrice, priceLine } from "./storefront-view.js";
 const $ = selector => document.querySelector(selector);
 const grid = $("#grid");
 const state = $("#state");
@@ -15,10 +16,6 @@ function loginUrl(hash = "") { return `${LOGIN}?mode=login&next=${encodeURICompo
 
 function escapeHtml(value) { const node = document.createElement("div"); node.textContent = String(value ?? ""); return node.innerHTML; }
 function formatNumber(value) { return new Intl.NumberFormat("de-DE").format(Number(value || 0)); }
-function formatPrice(cents, currency = "EUR") {
-  try { return new Intl.NumberFormat("de-DE", { style: "currency", currency }).format(Number(cents || 0) / 100); }
-  catch { return `${formatNumber(Number(cents || 0) / 100)} €`; }
-}
 function initials(name) { return String(name || "P").split(/\s+/).map(v => v[0]).join("").slice(0,2).toUpperCase(); }
 function setState(message = "") { state.hidden = !message; state.textContent = message; grid.hidden = Boolean(message); }
 function toast(message, ms = 3200) { const el = document.createElement("div"); el.className = "toast"; el.textContent = message; document.body.append(el); setTimeout(() => el.remove(), ms); }
@@ -80,20 +77,6 @@ async function logout() {
   await loadCatalog();
 }
 
-// Access → badge text and card call to action.
-const ACCESS = {
-  included: { badge: "Im Paket enthalten", cta: "Im Editor verwenden", tone: "ok" },
-  purchased: { badge: "Gekauft", cta: "Im Editor verwenden", tone: "ok" },
-  buyable: { badge: "Einzeln kaufbar", cta: "Ansehen & kaufen", tone: "buy" },
-  locked: { badge: "Ab höherem Paket", cta: "Details", tone: "lock" }
-};
-function accessInfo(item) { return ACCESS[item.access] || ACCESS.locked; }
-function priceLine(item) {
-  if (item.access === "included") return `Enthalten in Ihrem Paket`;
-  if (item.access === "purchased") return "Dauerhaft freigeschaltet";
-  if (item.offer.kind === "purchase") return `${formatPrice(item.offer.priceCents, item.offer.currency)} <small>einmalig, zzgl. USt.</small>`;
-  return `Ab Paket ${escapeHtml(item.offer.includedFromLabel)}`;
-}
 function presetSummary(preset) {
   const parts = [];
   if (preset.kind === "process") parts.push("Ablauf");
@@ -117,21 +100,10 @@ function renderFeatured() {
   const section = $("#empfohlen");
   const item = packages.find(entry => entry.offer.featured);
   if (!item) { section.hidden = true; return; }
-  const info = accessInfo(item);
   section.hidden = false;
-  $("#featured").innerHTML = `<article class="featured-card" data-id="${escapeHtml(item.id)}">
-    <div class="featured-copy">
-      <div class="section-tag">Empfohlen · ${escapeHtml(info.badge)}</div>
-      <h2>${escapeHtml(item.name)}</h2>
-      <p>${escapeHtml(item.offer.tagline || item.description)}</p>
-      <ul class="highlights">${item.offer.highlights.map(h => `<li>${escapeHtml(h)}</li>`).join("")}</ul>
-    </div>
-    <div class="featured-buy">
-      <div class="featured-price">${priceLine(item)}</div>
-      <div class="featured-presets">${item.presets.map(p => `<span>${escapeHtml(p.title)}</span>`).join("")}</div>
-      <button class="btn-primary" type="button" data-open="${escapeHtml(item.id)}">${escapeHtml(info.cta)}</button>
-    </div>
-  </article>`;
+  const html = featuredCardHtml(item, escapeHtml);
+  const target = $("#featured");
+  if (target.innerHTML !== html) target.innerHTML = html;
 }
 
 function render() {

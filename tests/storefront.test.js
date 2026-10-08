@@ -44,10 +44,12 @@ async function startMarket(t) {
     child.on("exit", code => { clearTimeout(timer); reject(new Error(`market exited ${code}`)); });
   });
   const base = `http://127.0.0.1:${port}`;
-  return async (path, { persona, method = "GET", body } = {}) => {
+  const call = async (path, { persona, method = "GET", body } = {}) => {
     const response = await fetch(base + path, { method, headers: { origin: ORIGIN, "content-type": "application/json", ...(persona ? { cookie: `dp_session=${persona}` } : {}) }, body: body == null ? undefined : JSON.stringify(body) });
     return { status: response.status, body: await response.json().catch(() => ({})) };
   };
+  call.base = base;
+  return call;
 }
 
 test("the Freigaben package is seeded, public with price and only usable when included or bought", async t => {
@@ -104,7 +106,8 @@ test("the Freigaben package is seeded, public with price and only usable when in
 });
 
 test("the storefront sells: prices, purchase and invoice order, checkout return and editor hand-off", async () => {
-  const app = await readFile(join(root, "public/app.js"), "utf8");
+  // Badge, CTA and price wording live in the shared storefront view module (browser + first paint).
+  const app = await readFile(join(root, "public/app.js"), "utf8") + await readFile(join(root, "public/storefront-view.js"), "utf8");
   const html = await readFile(join(root, "public/index.html"), "utf8");
   const admin = await readFile(join(root, "public/admin.js"), "utf8");
   assert.match(app, /\/api\/catalog/);
@@ -120,4 +123,21 @@ test("the storefront sells: prices, purchase and invoice order, checkout return 
   assert.match(admin, /Auf Rechnung freischalten/);
   assert.match(admin, /\/api\/admin\/purchases/);
   assert.match(admin, /Angebot speichern/);
+});
+
+test("first paint already contains the featured package and llms.txt is served as text", async t => {
+  const call = await startMarket(t);
+  const page = await fetch(call.base + "/");
+  assert.equal(page.status, 200);
+  const html = await page.text();
+  assert.match(html, /<section class="featured-section" id="empfohlen">/, "featured section is visible without waiting for /api/catalog");
+  assert.match(html, new RegExp(`class="featured-card" data-id="${FREIGABEN.replace(".", "\\.")}"`));
+  assert.match(html, /zzgl\. USt\.|Ab Paket/);
+  const llms = await fetch(call.base + "/llms.txt");
+  assert.equal(llms.status, 200);
+  assert.match(llms.headers.get("content-type"), /^text\/plain/);
+  const text = await llms.text();
+  assert.match(text, /^# .+/m);
+  assert.match(text, /^> .+/m);
+  assert.match(text, /\[.+\]\(https:\/\/.+\)/);
 });
